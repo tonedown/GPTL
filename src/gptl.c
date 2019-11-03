@@ -18,6 +18,17 @@
 #include <ctype.h>         /* isdigit */
 #include <sys/types.h>     /* u_int8_t, u_int16_t */
 
+#ifdef HAVE_CUDA
+#include <cuda.h>
+#include <helper_cuda.h>
+
+int GPTLcores_per_sm = -1;
+int GPTLcores_per_gpu = -1;
+static int SMcount = -1;        // SMs per GPU
+static int khz = -1;            // GPU freq
+static int warpsize = -1;
+#endif
+
 #ifdef HAVE_LIBRT
 #include <time.h>
 #endif
