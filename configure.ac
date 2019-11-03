@@ -27,8 +27,8 @@ LT_INIT()
 # The config.h file will be created when configure script is run.
 AC_CONFIG_HEADERS([config.h])
 
-# Find the C compiler.
-AC_PROG_CC()
+# Find the C++ compiler.
+AC_PROG_CXX()
 
 # These ensure proper handling of const and inline.
 AC_C_CONST
@@ -58,18 +58,20 @@ test "x$enable_openmp" != xno && enable_openmp=yes
 if test "$enable_openmp" = yes; then
 
 # Enable OpenMP support if not told to skip, and compiler supports it
+# Strangely, even when the compiler is CXX, AC_OPENMP sets shell variables based
+# on CFLAGS not CXXFLAGS, thus the following code
   useomp=no;
   AC_OPENMP
   if test "x$ac_cv_prog_c_openmp" != xunsupported; then
     useomp=yes;
     AC_DEFINE([THREADED_OMP], [1], [openmp support is present])
-    CFLAGS="$CFLAGS $OPENMP_CFLAGS"
+    CXXFLAGS="$CXXFLAGS $OPENMP_CFLAGS"
   fi
 fi
 AM_CONDITIONAL([HAVE_OPENMP], [test x$useomp = xyes])
 
 # for C++ only:
-# CFLAGS="$CFLAGS -fpermissive"
+# CXXFLAGS="$CXXFLAGS -fpermissive"
 
 # Does the user want to turn on nested OMP? Enable only if you will be
 # profiling code regions inside of doubly-nested OpenMP regions. Using
@@ -128,7 +130,7 @@ AC_ARG_ENABLE([debug], [AS_HELP_STRING([--enable-debug],
 test "x$enable_debug" = xyes || enable_debug=no
 if test $enable_debug = yes; then
    AC_DEFINE([DEBUG], [1], [set debug ifdef])
-   CFLAGS="$CFLAGS -O0"
+   CXXFLAGS="$CXXFLAGS -O0"
 fi
 
 AC_MSG_CHECKING([whether PAPI is to be enabled])

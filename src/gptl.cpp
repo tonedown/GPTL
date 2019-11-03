@@ -389,6 +389,7 @@ int GPTLsetoption (const int option,  /* option */
     if (verbose)
       printf ("%s: onlypr_rank0 = %d\n", thisfunc, val);
     return 0;
+#ifdef HAVE_CUDA
   case GPTLmaxwarps_gpu:
     if (val < 1)
       return GPTLerror ("%s: maxwarps_gpu must be positive. %d is invalid\n", thisfunc, val);
@@ -401,6 +402,7 @@ int GPTLsetoption (const int option,  /* option */
     maxtimers_gpu = val;
     printf ("%s: maxtimers_gpu = %d\n", thisfunc, maxtimers_gpu);
     return 0;    
+#endif
   case GPTLmultiplex:
     /* Allow GPTLmultiplex to fall through because it will be handled by GPTL_PAPIsetoption() */
   default:
