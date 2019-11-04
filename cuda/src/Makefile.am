@@ -2,6 +2,7 @@
 # Jim Rosinski 11/3/19
 
 # Small max register count for the library code to minimize performance impact on calling app
+NVCC = @NVCC@
 CUFLAGS = @CUFLAGS@ --maxrregcount 32
 
 # This is our output. The GPTL library.
@@ -18,3 +19,6 @@ endif
 
 %.o: %.cu
 	$(NVCC) $< $(CUFLAGS)
+
+# Test output to be deleted.
+CLEANFILES = *.ii *.ptx *.cudafe1.* *.fatbin* *.module_id *_dlink.*

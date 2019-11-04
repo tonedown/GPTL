@@ -102,6 +102,7 @@ if test "x$enable_pthread" = xyes; then
   if test "x$ac_cv_lib_pthread_pthread_mutex_init" = xyes; then
      AC_DEFINE([THREADED_PTHREADS], [1], [pthreads library is present])
   fi
+  AC_MSG_RESULT([$ac_cv_lib_pthread_pthread_mutex_init])
 fi
 
 # GPTL only works with EITHER OpenMP OR pthread lib. Barf on attempts to enable both
@@ -165,10 +166,10 @@ AM_CONDITIONAL([HAVE_PAPI], [test "x$have_papi" = xyes])
 # gathering wallclock time stats on some machines. Setting
 # HAVE_LIBRT=yes enables this, but will probably require linking
 # applications with -lrt
-AC_CHECK_LIB([rt], [clock_gettime], [have_librt = yes], [have_librt=no],)
+AC_CHECK_LIB([rt], [clock_gettime], [have_librt=yes], [have_librt=no],)
 if test "$have_librt" = yes; then
   AC_DEFINE([HAVE_LIBRT],[1],[librt found])
-  FCFLAGS = "-DHAVE_LIBRT $FCFLAGS"
+  FCFLAGS="-DHAVE_LIBRT $FCFLAGS"
 fi
 
 # If getrusage is found then HAVE_GETRUSAGE will automatically be defined for obtaining RSS
@@ -411,6 +412,18 @@ EOF
     fi
     rm -f conftest.cu conftest.o
     AC_MSG_RESULT([$working_nvcc])
+# Define path to helper_cuda.h if available
+    AC_MSG_CHECKING([for helper_cuda.h])
+    CUDA_INSTALL_PATH="$(dirname $NVCC)/.."
+    HELPER_PATH=${CUDA_INSTALL_PATH}/samples/common/inc
+    if test -e "${HELPER_PATH}/helper_cuda.h"; then
+      have_helper=yes
+      AC_DEFINE([HAVE_HELPER_CUDA_H], [1], [have helper_cuda.h])
+      AC_SUBST([HELPER_PATH])
+      AC_MSG_RESULT([$HELPER_PATH])
+    else
+      AC_MSG_RESULT([not found])
+    fi
   fi
 # Initialize CUFLAGS
   if test $enable_debug = yes; then
@@ -436,6 +449,7 @@ EOF
   AC_SUBST(CUFLAGS)
 fi
 AM_CONDITIONAL([HAVE_CUDA], [test "x$working_nvcc" = "xyes"])
+AM_CONDITIONAL([HAVE_HELPER], [test "x$have_helper" = "xyes"])
 
 # If cuda support enabled, check for Fortran OpenACC support (default yes)
 if test "x$enable_cuda" = xyes; then

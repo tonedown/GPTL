@@ -20,7 +20,9 @@
 
 #ifdef HAVE_CUDA
 #include <cuda.h>
+#ifdef HAVE_HELPER_CUDA_H
 #include <helper_cuda.h>
+#endif
 
 int GPTLcores_per_sm = -1;
 int GPTLcores_per_gpu = -1;
@@ -3355,11 +3357,13 @@ int GPTLget_gpu_props (int *khz, int *warpsize, int *devnum, int *SMcount,
   *khz           = prop.clockRate;
   *warpsize      = prop.warpSize;
   *SMcount       = prop.multiProcessorCount;
+#ifdef HAVE_HELPER_CUDA_H
   *cores_per_sm  = _ConvertSMVer2Cores (prop.major, prop.minor);
   *cores_per_gpu = *cores_per_sm * (*SMcount);
-  
-  // Use _ConvertSMVer2Cores when it is available from nvidia
-  //  cores_per_gpu = _ConvertSMVer2Cores (prop.major, prop.minor) * prop.multiProcessorCount);
+#else
+  *cores_per_sm  = -1;
+  *cores_per_gpu = -1;
+#endif  
   printf ("%s: major.minor=%d.%d\n", thisfunc, prop.major, prop.minor);
   printf ("%s: SM count=%d\n",      thisfunc, *SMcount);
   printf ("%s: cores per sm=%d\n",  thisfunc, *cores_per_sm);
