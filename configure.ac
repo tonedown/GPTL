@@ -93,8 +93,7 @@ AC_MSG_RESULT($enable_nestedomp)
 AM_CONDITIONAL(ENABLE_NESTEDOMP, [test x$enable_nestedomp = xyes])
 
 # pthread library. default disabled
-AC_ARG_ENABLE([pthread],
-    AS_HELP_STRING([--enable-pthread], [Enable pthread capability]))
+AC_ARG_ENABLE([pthread], AS_HELP_STRING([--enable-pthread], [Enable pthread capability]))
 
 if test "x$enable_pthread" = xyes; then
   dnl Do the stuff needed for enabling the feature
@@ -325,8 +324,7 @@ AC_DEFINE([HAVE_COMM_F2C], [1], [Hopefully MPI_Comm_f2c is present])
 
 # Does the user want to turn on PMPI?
 AC_MSG_CHECKING([whether PMPI is to be enabled])
-AC_ARG_ENABLE([pmpi], [AS_HELP_STRING([--enable-pmpi],
-              [build with PMPI capability])])
+AC_ARG_ENABLE([pmpi], [AS_HELP_STRING([--enable-pmpi], [build with PMPI capability])])
 test "x$enable_pmpi" = xyes || enable_pmpi=no
 AM_CONDITIONAL([ENABLE_PMPI], [test x$enable_pmpi = xyes])
 if test "$enable_pmpi" = yes; then
@@ -391,6 +389,85 @@ AC_CONFIG_FILES([Makefile
 AC_CONFIG_FILES([tests/run_par_summary_test.sh], [chmod ugo+x tests/run_par_summary_test.sh])
 AC_CONFIG_FILES([tests/run_par_pmpi_test.sh], [chmod ugo+x tests/run_par_pmpi_test.sh])
 AC_CONFIG_FILES([tests/run_par_global_test.sh], [chmod ugo+x tests/run_par_global_test.sh])
+
+# Enable CUDA support? Default no.
+AC_ARG_ENABLE([cuda], [AS_HELP_STRING([--enable-cuda], [build support for CUDA])])
+
+test "x$enable_cuda" = xyes || enable_cuda=no
+# If cuda support requested, check for compiler and library support
+if test "x$enable_cuda" = xyes; then
+  AC_ARG_VAR([NVCC], [nvcc compiler to use])
+  AC_PATH_PROG([NVCC], [nvcc], [no])
+  working_nvcc=no
+  if test "x$NVCC" != "xno"; then
+      AC_MSG_CHECKING([whether nvcc works])
+      cat>conftest.cu<<EOF
+      __global__ void whatever() {
+    }
+EOF
+    if $NVCC -c conftest.cu; then
+      working_nvcc=yes
+      AC_DEFINE([HAVE_CUDA], [1], [cuda support enabled])
+    fi
+    rm -f conftest.cu conftest.o
+    AC_MSG_RESULT([$working_nvcc])
+  fi
+# Initialize CUFLAGS
+  if test $enable_debug = yes; then
+    CUFLAGS="$CUFLAGS -rdc=true -O0 -G -lineinfo "
+  else
+    CUFLAGS="$CUFLAGS -rdc=true -O2"
+  fi
+# Check for user-supplied GPU compute capability (default sm_60)
+  user_sets_gpu_compute_capability="no"
+  AC_MSG_CHECKING(for GPU compute capability)
+  AC_ARG_WITH([GPU-compute-capability], [AS_HELP_STRING([--with-GPU-compute-capability=value],
+  		[use compute capability "value" for GPU version (default sm_60)])],
+ 		[user_sets_gpu_compute_capability="yes"],[cuda_compute_capability="sm_60"])
+  if test x"$user_sets_gpu_compute_capability" = x"yes"; then
+    cuda_compute_capability=$withval
+    AC_MSG_RESULT([User specified ${cuda_compute_capability}])
+  else
+    AC_MSG_RESULT([Default ${cuda_compute_capability}])
+  fi
+# Modify CUFLAGS for compute capability
+  CUFLAGS="$CUFLAGS -arch $cuda_compute_capability"
+  AC_SUBST(NVCC)
+  AC_SUBST(CUFLAGS)
+fi
+AM_CONDITIONAL([HAVE_CUDA], [test "x$working_nvcc" = "xyes"])
+
+# If cuda support enabled, check for Fortran OpenACC support (default yes)
+if test "x$enable_cuda" = xyes; then
+  AC_ARG_ENABLE([facc], [AS_HELP_STRING([--disable-facc], [disable support for Fortran OpenACC])])
+  test "x$enable_facc" != xno && enable_facc=yes
+  if test "$enable_facc" = yes; then
+    AC_MSG_CHECKING([for $FC flag to enable OpenACC])
+    cat>conftest.F90<<EOF
+    program ftest
+    x = acc_device_type()
+    end program ftest
+EOF
+    working_fc_acc=no
+    for ac_option in -acc -fopenacc; do
+      if $FC -c $ac_option conftest.F90; then
+        accflag=$ac_option
+	FFLAGS_ACC="$FFLAGS_ACC $accflag"
+        working_fc_acc=yes
+        AC_DEFINE([HAVE_FC_ACC], [1], [Fortran OpenACC support enabled])
+	AC_SUBST(FFLAGS_ACC)
+	break
+      fi
+    done
+    rm -f conftest.F90 conftest.o
+    if test "$working_fc_acc" = yes; then
+      AC_MSG_RESULT([$accflag])
+    else
+      AC_MSG_RESULT([Not found--Fortran ACC support will NOT be enabled])
+    fi
+  fi
+fi
+AM_CONDITIONAL([HAVE_FC_ACC], [test "x$working_fc_acc" = "xyes"])
 
 # Is doxygen installed?
 AC_CHECK_PROGS([DOXYGEN], [doxygen])

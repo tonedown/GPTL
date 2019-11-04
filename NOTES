@@ -1,0 +1,38 @@
+Status: Set up structure (see below) and copied in files from working
+cuda_acc branch. For now left out Makefile* since they will need to be built
+pretty much from scratch.
+
+Next:
+  How to modify configure.ac for CUDA?
+    Either --enable-cuda or --with-cuda=...
+  How to construct Makefile.am and other autotools files in the other
+  directories?
+  Go ahead an break up gptl_device.cu into pieces and implement
+  namespace--why not since it's already built with nvcc?
+
+o When to start breaking things up into smaller files and using C++ namespace?
+
+o Rewrote the few things that are __global__ as CPU wrapper functions that
+call the __global__ routines. Then e.g. gptl.cu is gptl.cpp, nvcc recognizes
+all these files as CPU-only, so there's no need for all the __host__
+stuff. gptl.cpp is the same as in master but with a few mods for CUDA
+routines. The __global__ routines live in cuda/
+
+Directory structure:
+
+src/       <--CPU routines
+include/   <--CPU include files
+tests/     <--C CPU tests
+bin/       <--binaries
+fortran/
+  src/     <--Fortran CPU routines
+  include/ <--Fortran CPU include files
+  tests/   <--Fortran CPU tests
+cuda/
+  src/     <--CUDA routines
+  include/ <--CUDA-specific include files
+  tests/   <--CUDA tests
+facc/
+  src/     <--Fortran acc wrappers
+  include/ <--Fortran include files
+  tests/   <--Fortran acc tests

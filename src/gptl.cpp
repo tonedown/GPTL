@@ -89,7 +89,9 @@ static int warpsize = -1;
 #endif
 
 static time_t ref_gettimeofday = -1;   /* ref start point for gettimeofday */
+#ifdef HAVE_LIBRT
 static time_t ref_clock_gettime = -1;  /* ref start point for clock_gettime */
+#endif
 #ifdef _AIX
 static time_t ref_read_real_time = -1; /* ref start point for read_real_time */
 #endif
@@ -472,7 +474,6 @@ int GPTLinitialize (void)
 {
   int i;          /* loop index */
   int t;          /* thread index */
-  int ret;        /* return value */
   double t1, t2;  /* returned from underlying timer */
   static const char *thisfunc = "GPTLinitialize";
 
@@ -537,6 +538,7 @@ int GPTLinitialize (void)
     printf ("Underlying wallclock timing routine is %s\n", funclist[funcidx].name);
   }
 #ifdef HAVE_CUDA
+  int ret;
   ret = GPTLget_gpu_props (&khz, &warpsize, &devnum, &SMcount, &GPTLcores_per_sm, &GPTLcores_per_gpu);
   if (warpsize != WARPSIZE)
     return GPTLerror ("%s: warpsize=%d WARPSIZE=%d\n", thisfunc, warpsize, WARPSIZE);
@@ -621,7 +623,9 @@ int GPTLfinalize (void)
   dopr_multparent = true;
   dopr_collision = true;
   ref_gettimeofday = -1;
+#ifdef HAVE_LIBRT
   ref_clock_gettime = -1;
+#endif
 #ifdef _AIX
   ref_read_real_time = -1;
 #endif
@@ -2967,7 +2971,6 @@ char *extract_name (char *str)
 void __cyg_profile_func_exit (void *this_fn,
                               void *call_site)
 {
-  float rss;
   int t;             // thread index
   unsigned int indx; // hash table index
   Timer *ptr;        // pointer to entry if it already exists
