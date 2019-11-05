@@ -27,6 +27,8 @@
       integer GPTLtablesize
       integer GPTLmaxthreads
       integer GPTLonlyprint_rank0
+      integer GPTLmaxwarps_gpu
+      integer GPTLmaxtimers_gpu
 
       integer GPTL_IPC
       integer GPTL_LSTPI
@@ -68,6 +70,8 @@
       parameter (GPTLtablesize      = 50)
       parameter (GPTLmaxthreads     = 51)
       parameter (GPTLonlyprint_rank0= 52)
+      parameter (GPTLmaxwarps_gpu   = 53)
+      parameter (GPTLmaxtimers_gpu  = 54)
 
       parameter (GPTL_IPC           = 17)
       parameter (GPTL_LSTPI         = 21)

@@ -10,7 +10,7 @@ lib_LTLIBRARIES = libgptl_cuda.la
 libgptl_cuda_la_LDFLAGS = -version-info 1:0:0
 
 # These are the source files.
-libgptl_cuda_la_SOURCES = gptl_device.cu globaldrivers.cu util_device.cu
+libgptl_cuda_la_SOURCES = gptl_device.cu globaldrivers.cu util_device.cu print_gpustats.cu
 
 # Add Fortran wrappers if Fortran support was found
 if HAVE_FC_ACC

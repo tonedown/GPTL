@@ -28,5 +28,8 @@ __device__ int GPTLmy_sleep (float);
 __device__ int GPTLget_wallclock_gpu (const int, double *, double *, double *);
 #pragma acc routine seq
 __device__ void GPTLwhoami (const char *);
+
+__host__ int GPTLget_gpu_props (int *, int *, int *, int *, int *, int *);
+__host__ int GPTLcudadevsync (void);
 };
 #endif

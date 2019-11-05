@@ -13,7 +13,6 @@ __device__ static volatile int mutex = 0;         // critical section unscramble
 
 extern "C" {
 __device__ static void grab_mutex (void);
-}
 
 #define RELENQUISH_MUTEX (mutex = 0);
 
@@ -27,8 +26,6 @@ __device__ static void grab_mutex (void);
 **
 ** Return value: -1 (failure)
 */
-
-extern "C" {
 
 __device__ int GPTLerror_1s (const char *fmt, const char *str)
 {

@@ -10,8 +10,8 @@
 #include <stdint.h>        // uint types
 #include <cuda.h>
 
-#include "./private.h"
-#include "./gptl_cuda.h"
+#include "../include/private.h"
+#include "../include/gptl_cuda.h"
 
 #define FLATTEN_TIMERS(SUB1,SUB2) (SUB1)*maxtimers + (SUB2)
 

@@ -36,3 +36,5 @@ facc/
   src/     <--Fortran acc wrappers
   include/ <--Fortran include files
   tests/   <--Fortran acc tests
+---------------------------------------------------------------------------------
+Whether to allow CC other than nvcc for CPU compilation with --enable-cuda?

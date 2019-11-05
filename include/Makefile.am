@@ -1,2 +1,2 @@
 include_HEADERS = gptl.h
-noinst_HEADERS = private.h
+noinst_HEADERS = private.h devicehost.h

@@ -11,6 +11,7 @@
 
 #include <stdio.h>
 #include <sys/time.h>
+#include "./devicehost.h"
 
 #ifndef MIN
 #define MIN(X,Y) ((X) < (Y) ? (X) : (Y))
@@ -27,9 +28,6 @@
 
 /* Maximum allowed callstack depth */
 #define MAX_STACK 128
-
-/* longest timer name allowed (probably safe to just change) */
-#define MAX_CHARS 127
 
 // Longest allowed symbol name for libunwind
 #define MAX_SYMBOL_NAME 255

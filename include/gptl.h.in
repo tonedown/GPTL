@@ -36,6 +36,8 @@ typedef enum {
   GPTLtablesize       = 50, /* per-thread size of hash table */
   GPTLmaxthreads      = 51, /* maximum number of threads */
   GPTLonlyprint_rank0 = 52, // Restrict printout to rank 0 when MPI enabled
+  GPTLmaxwarps_gpu    = 53, // Maximum number of warps per GPU to time
+  GPTLmaxtimers_gpu   = 54, // Maximum number of timers per GPU
   /*
   ** These are derived counters based on PAPI counters. All default to false
   */

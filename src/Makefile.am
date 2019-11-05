@@ -3,6 +3,10 @@
 
 HELPER_PATH = @HELPER_PATH@
 libgptl_la_CPPFLAGS = -I$(top_srcdir)/include
+if HAVE_CUDA
+libgptl_la_CPPFLAGS += -I$(top_srcdir)/cuda/include
+endif
+
 if HAVE_HELPER
 libgptl_la_CPPFLAGS += -I$(HELPER_PATH)
 endif

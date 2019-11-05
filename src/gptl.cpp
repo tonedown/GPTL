@@ -18,23 +18,6 @@
 #include <ctype.h>         /* isdigit */
 #include <sys/types.h>     /* u_int8_t, u_int16_t */
 
-#ifdef HAVE_CUDA
-#include <cuda.h>
-#ifdef HAVE_HELPER_CUDA_H
-#include <helper_cuda.h>
-#endif
-
-int GPTLcores_per_sm = -1;
-int GPTLcores_per_gpu = -1;
-static int SMcount = -1;        // SMs per GPU
-static int khz = -1;            // GPU freq
-static int warpsize = -1;
-static double gpu_hz = 0.;      // GPU frequency in cycles per second
-static int maxwarps_gpu = DEFAULT_MAXWARPS_GPU;
-static int maxtimers_gpu = DEFAULT_MAXTIMERS_GPU;
-static int devnum = -1;
-#endif
-
 #ifdef HAVE_LIBRT
 #include <time.h>
 #endif
@@ -52,8 +35,30 @@ static int devnum = -1;
 #include <execinfo.h>
 #endif
 
-#include "private.h"
-#include "gptl.h"
+#include "../include/private.h"
+#include "../include/gptl.h"
+
+#ifdef HAVE_CUDA
+#include <cuda.h>
+
+#ifdef HAVE_HELPER_CUDA_H
+#include <helper_cuda.h>
+#endif
+
+// 2 warts that should be fixed
+extern int GPTLget_gpu_props (int *, int *, int *, int *, int *, int *);
+extern void GPTLprint_gpustats (FILE *, int, int, double, int);
+
+int GPTLcores_per_sm = -1;
+int GPTLcores_per_gpu = -1;
+static int maxwarps_gpu = DEFAULT_MAXWARPS_GPU;
+static int maxtimers_gpu = DEFAULT_MAXTIMERS_GPU;
+static int devnum = -1;
+static int SMcount = -1;               // SM count for each GPU
+static int khz = -1;
+static int warpsize = -1;
+static double gpu_hz = 0.;             // GPU frequency in cycles per second
+#endif
 
 static Timer **timers = 0;             /* linked list of timers */
 static Timer **last = 0;               /* last element in list */
@@ -84,11 +89,6 @@ static bool dopr_threadsort = true;    /* whether to print sorted thread stats *
 static bool dopr_multparent = true;    /* whether to print multiple parent info */
 static bool dopr_collision = true;     /* whether to print hash collision info */
 static bool dopr_memusage = false;     /* whether to include memusage print when auto-profiling */
-#ifdef HAVE_CUDA
-static int SMcount = -1;               // SM count for each GPU
-static int khz = -1;
-static int warpsize = -1;
-#endif
 
 static time_t ref_gettimeofday = -1;   /* ref start point for gettimeofday */
 #ifdef HAVE_LIBRT
@@ -3335,71 +3335,6 @@ Timer *GPTLgetentry (const char *name)
 
 #endif
 
-#ifdef HAVE_CUDA
-// Return useful GPU properties. Use arg list for SMcount, cores_per_sm, and cores_per_gpu even 
-// though they're globals, because this is a user-callable routine
-int GPTLget_gpu_props (int *khz, int *warpsize, int *devnum, int *SMcount,
-		       int *cores_per_sm, int *cores_per_gpu)
-{
-  cudaDeviceProp prop;
-  size_t size;
-  cudaError_t err;
-  static const size_t onemb = 1024 * 1024;
-  //static const size_t heap_mb = 8;  // this number should avoid needing to reset the limit
-  //static const size_t heap_mb = 128;
-  static const char *thisfunc = "GPTLget_gpu_props";
-
-  if ((err = cudaGetDeviceProperties (&prop, 0)) != cudaSuccess) {
-    printf ("%s: error:%s", thisfunc, cudaGetErrorString (err));
-    return -1;
-  }
-
-  *khz           = prop.clockRate;
-  *warpsize      = prop.warpSize;
-  *SMcount       = prop.multiProcessorCount;
-#ifdef HAVE_HELPER_CUDA_H
-  *cores_per_sm  = _ConvertSMVer2Cores (prop.major, prop.minor);
-  *cores_per_gpu = *cores_per_sm * (*SMcount);
-#else
-  *cores_per_sm  = -1;
-  *cores_per_gpu = -1;
-#endif  
-  printf ("%s: major.minor=%d.%d\n", thisfunc, prop.major, prop.minor);
-  printf ("%s: SM count=%d\n",      thisfunc, *SMcount);
-  printf ("%s: cores per sm=%d\n",  thisfunc, *cores_per_sm);
-  printf ("%s: cores per GPU=%d\n", thisfunc, *cores_per_gpu);
-
-  err = cudaGetDevice (devnum);  // device number
-  err = cudaDeviceGetLimit (&size, cudaLimitMallocHeapSize);
-  printf ("%s: default cudaLimitMallocHeapSize=%d MB\n", thisfunc, (int) (size / onemb));
-  return 0;
-}
-
-int GPTLcompute_chunksize (const int oversub, const int inner_iter_count)
-{
-  int chunksize;
-  float oversub_factor;
-  static const char *thisfunc = "GPTLcompute_chunksize";
-
-  if (oversub < 1)
-    return GPTLerror ("%s: oversub=%d must be > 0\n", thisfunc, oversub);
-
-  chunksize = (oversub * GPTLcores_per_gpu) / inner_iter_count;
-  if (chunksize < 1) {
-    chunksize = 1;
-    oversub_factor = (float) inner_iter_count / (float) GPTLcores_per_gpu;
-    printf ("%s: WARNING: chunksize=1 still results in an oversubscription factor=%f compared to request=%d\n",
-	    thisfunc, oversub_factor, oversub);
-  }
-  return chunksize;
-}
-
-int GPTLcudadevsync (void)
-{
-  cudaDeviceSynchronize ();
-  return 0;
-}
-#endif
 /*************************************************************************************/
 
 /*
