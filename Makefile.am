@@ -11,13 +11,14 @@ ACLOCAL_AMFLAGS = -I m4
 EXTRA_DIST = COPYING README
 
 # This is the list of subdirs for which Makefiles will be constructed and run
-SUBDIRS = include src tests bin
-if HAVE_FORTRAN
-SUBDIRS += fortran
-endif
-
+# They get built in order, so need to ensure tests/ comes after cuda/ 
+SUBDIRS = include src bin
 if HAVE_CUDA
 SUBDIRS += cuda
+endif
+SUBDIRS += tests
+if HAVE_FORTRAN
+SUBDIRS += fortran
 endif
 
 if HAVE_FC_ACC

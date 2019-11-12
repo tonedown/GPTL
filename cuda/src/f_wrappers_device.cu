@@ -5,6 +5,8 @@
 ** 
 ** Fortran wrappers for timing library routines
 */
+#include "config.h" /* Must be first include. */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include "private.h"   // MAX_CHARS, private prototypes

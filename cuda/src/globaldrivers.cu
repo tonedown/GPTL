@@ -1,7 +1,11 @@
 // Convenience routines moved from gptl.cpp to here so that gptl.cpp can be understood
 // by nvcc as host-only code.
 
+#include "config.h" /* Must be first include. */
+
 #include <cuda.h>
+#include <helper_cuda.h>
+#include "../include/private.h"
 #include "../../include/devicehost.h"
 #include "../include/gptl_cuda.h"
 

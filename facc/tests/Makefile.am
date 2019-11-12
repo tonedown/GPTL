@@ -8,7 +8,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/include -I$(top_srcdir)/fortran/src -I$(top_srcdir
 
 # Link to GPTL fortran library.
 AM_LDFLAGS = ${top_builddir}/fortran/src/libgptlf.la ${top_builddir}/src/libgptl.la \
-             ${top_builddir}/fortran/src/libgptl_cuda.la
+             ${top_builddir}/cuda/src/libgptl_cuda.la
 
 LDADD = ${top_builddir}/src/libgptl.la
 

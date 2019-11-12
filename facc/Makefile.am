@@ -9,7 +9,7 @@ EXTRA_DIST = COPYING
 
 # This is the list of subdirs for which Makefiles will be constructed
 # and run.
-SUBDIRS = src include tests
+SUBDIRS = include src tests
 
 install-data-hook:
 

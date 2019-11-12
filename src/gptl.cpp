@@ -46,8 +46,10 @@
 #endif
 
 // 2 warts that should be fixed
+#ifdef HAVE_CUDA
 extern int GPTLget_gpu_props (int *, int *, int *, int *, int *, int *);
 extern void GPTLprint_gpustats (FILE *, int, int, double, int);
+#endif
 
 int GPTLcores_per_sm = -1;
 int GPTLcores_per_gpu = -1;

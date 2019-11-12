@@ -191,11 +191,11 @@ AC_CHECK_LIB([m], [floor], [], [AC_MSG_ERROR([Can't find or link to the math lib
 
 # AC_CHECK_LIB doesn't work for libunwind due to funkiness in the lib so use AC_CHECK_HEADER
 AC_MSG_CHECKING([for libunwind])
-AC_CHECK_HEADER([libunwind.h], found_libunwind=yes;)
+AC_CHECK_HEADER([libunwind.h], [found_libunwind=yes])
 AC_MSG_RESULT([$ac_cv_libunwind_h])
 
 AC_MSG_CHECKING([for backtrace])
-AC_CHECK_FUNC([backtrace_symbols], found_backtrace=yes;)
+AC_CHECK_FUNC([backtrace_symbols], [found_backtrace=yes])
 AC_MSG_RESULT([$ac_cv_func_backtrace_symbols])
 
 # For auto-profiling, backtrace is the default method to recover current function name.
@@ -368,7 +368,7 @@ if test "x$enable_fortran" = "xyes"; then
     FCFLAGS="-DHAVE_PAPI $FCFLAGS"
   fi
   
-# This is a list of files to be built when Fortran support enabled
+# These files will be built when Fortran support enabled
   AC_CONFIG_FILES([fortran/Makefile
                    fortran/include/Makefile
                    fortran/src/Makefile
@@ -380,7 +380,7 @@ if test "x$enable_fortran" = "xyes"; then
 fi
 AM_CONDITIONAL([HAVE_FORTRAN], [test x$enable_fortran = "xyes"])
 
-# This is a list of C files to be built
+# These files will always be built
 AC_CONFIG_FILES([Makefile
                  include/Makefile
                  tests/Makefile
@@ -396,6 +396,7 @@ AC_ARG_ENABLE([cuda], [AS_HELP_STRING([--enable-cuda], [build support for CUDA])
 
 test "x$enable_cuda" = xyes || enable_cuda=no
 # If cuda support requested, check for compiler and library support
+AC_LANG_PUSH([C++])
 if test "x$enable_cuda" = xyes; then
   AC_ARG_VAR([NVCC], [nvcc compiler to use])
   AC_PATH_PROG([NVCC], [nvcc], [no])
@@ -444,12 +445,22 @@ EOF
     AC_MSG_RESULT([Default ${cuda_compute_capability}])
   fi
 # Modify CUFLAGS for compute capability
-  CUFLAGS="$CUFLAGS -arch $cuda_compute_capability"
+  CUFLAGS="$CUFLAGS -arch ${cuda_compute_capability}"
   AC_SUBST(NVCC)
   AC_SUBST(CUFLAGS)
 fi
 AM_CONDITIONAL([HAVE_CUDA], [test "x$working_nvcc" = "xyes"])
 AM_CONDITIONAL([HAVE_HELPER], [test "x$have_helper" = "xyes"])
+
+if test "x$working_nvcc" = "xyes"; then
+# These files will be built when CUDA support enabled
+  AC_CONFIG_FILES([cuda/Makefile
+                   cuda/include/Makefile
+                   cuda/src/Makefile
+                   cuda/tests/Makefile
+	  	 ])
+fi
+AC_LANG_POP([C++])
 
 # If cuda support enabled, check for Fortran OpenACC support (default yes)
 if test "x$enable_cuda" = xyes; then
@@ -482,6 +493,15 @@ EOF
   fi
 fi
 AM_CONDITIONAL([HAVE_FC_ACC], [test "x$working_fc_acc" = "xyes"])
+
+# These files will be built when CUDA and Fortran OpenACC support enabled
+if test "x$working_fc_acc" = "xyes"; then
+  AC_CONFIG_FILES([facc/Makefile
+                   facc/include/Makefile
+                   facc/src/Makefile
+                   facc/tests/Makefile
+	  	 ])
+fi
 
 # Is doxygen installed?
 AC_CHECK_PROGS([DOXYGEN], [doxygen])

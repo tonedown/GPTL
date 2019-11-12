@@ -5,6 +5,8 @@
 ** Main file contains most CUDA GPTL functions
 */
 
+#include "config.h" /* Must be first include. */
+
 #include <stdio.h>
 #include <string.h>        // memcpy
 #include <stdint.h>        // uint types

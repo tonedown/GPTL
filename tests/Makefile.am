@@ -12,6 +12,9 @@ INSTR_LINK = @INSTR_LINK@
 
 # Link to GPTL library.
 AM_LDFLAGS = ${top_builddir}/src/libgptl.la
+if HAVE_CUDA
+AM_LDFLAGS += ${top_builddir}/cuda/src/libgptl_cuda.la
+endif
 
 # These programs will be built but not installed.
 noinst_PROGRAMS = printwhileon imperfect_nest
