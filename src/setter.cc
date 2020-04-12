@@ -4,6 +4,9 @@
 #include "private.h"
 #include "thread.h"
 #include "util.h"
+#ifdef HAVE_PAPI
+#include "gptl_papi.h"
+#endif
 
 #include <string.h>    // memset
 

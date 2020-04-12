@@ -1,0 +1,7 @@
+o To build with GNU:
+  % env LIBS="-lstdc++" CXXFLAGS="-O3 -mavx2 -g -fkeep-inline-functions" ./configure
+  % env LIBS="-lstdc++" CXXFLAGS="-fkeep-inline-functions" ./configure --enable-debug --disable-shared
+
+o To build with Intel:
+  % env CXX=icpc CC=icc FC=ifort LIBS="-lstdc++" CXXFLAGS="-fPIC -m64 -g -O3 -fkeep-inline-functions" ./configure
+o To build with GNU:

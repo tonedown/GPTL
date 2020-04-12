@@ -131,6 +131,7 @@ test "x$enable_debug" = xyes || enable_debug=no
 if test $enable_debug = yes; then
    AC_DEFINE([DEBUG], [1], [set debug ifdef])
    CXXFLAGS="$CXXFLAGS -g -O0"
+   FCFLAGS="$FCFLAGS -g -O0"
 fi
 
 AC_MSG_CHECKING([whether PAPI is to be enabled])

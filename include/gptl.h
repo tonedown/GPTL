@@ -72,54 +72,55 @@ typedef enum {
 extern "C" {
 #endif
   // In once.cc:
-  int GPTLsetoption (const int, const int);
-  int GPTLsetutr (const int option);
-  int GPTLinitialize (void);
-  int GPTLfinalize (void);
+  extern int GPTLsetoption (const int, const int);
+  extern int GPTLsetutr (const int option);
+  extern int GPTLinitialize (void);
+  extern int GPTLfinalize (void);
 
   // In gptl.cc:
-  int GPTLinit_handle (const char *, int *);
-  int GPTLstart (const char *);
-  int GPTLstart_handle (const char *, int *);
-  int GPTLstop (const char *);
-  int GPTLstop_handle (const char *, int *);
-  int GPTLstartstop_val (const char *, double);
+  extern int GPTLinit_handle (const char *, int *);
+  extern int GPTLstart (const char *);
+  extern int GPTLstart_handle (const char *, int *);
+  extern int GPTLstop (const char *);
+  extern int GPTLstop_handle (const char *, int *);
+  extern int GPTLstartstop_val (const char *, double);
 
   // In getter.cc:
-  int GPTLstamp (double *, double *, double *);
-  int GPTLquery (const char *, int, int *, int *, double *, double *, double *, long long *,
+  extern int GPTLstamp (double *, double *, double *);
+  extern int GPTLquery (const char *, int, int *, int *, double *, double *, double *, long long *,
 		 const int);
-  int GPTLget_wallclock (const char *, int, double *);
-  int GPTLget_wallclock_latest (const char *, int, double *);
-  int GPTLget_nregions (int, int *);
-  int GPTLget_regionname (int, int, char *, int);
-  int GPTLget_threadwork (const char *, double *, double *);
-  int GPTLget_eventvalue (const char *, const char *, int, double *);
-  int GPTLget_count (const char *, int, int *);
-  int GPTLnum_errors (void);
-  int GPTLnum_warn (void);
+  extern int GPTLget_wallclock (const char *, int, double *);
+  extern int GPTLget_wallclock_latest (const char *, int, double *);
+  extern int GPTLget_nregions (int, int *);
+  extern int GPTLget_regionname (int, int, char *, int);
+  extern int GPTLget_threadwork (const char *, double *, double *);
+  extern int GPTLget_eventvalue (const char *, const char *, int, double *);
+  extern int GPTLget_count (const char *, int, int *);
+  extern int GPTLnum_errors (void);
+  extern int GPTLnum_warn (void);
 
   // In postprocess.cc:
-  int GPTLpr (const int);
-  int GPTLpr_file (const char *);
+  extern int GPTLpr (const int);
+  extern int GPTLpr_file (const char *);
   
   // In setter.cc:
-  int GPTLsetutr (const int);
-  int GPTLreset (void);
-  int GPTLreset_errors (void);
-  int GPTLreset_timer (char *);
-  int GPTLdisable (void);
-  int GPTLenable (void);
+  extern int GPTLsetutr (const int);
+  extern int GPTLreset (void);
+  extern int GPTLreset_errors (void);
+  extern int GPTLreset_timer (char *);
+  extern int GPTLdisable (void);
+  extern int GPTLenable (void);
 
   // In memusage.cc:
-  int GPTLget_procsiz (float *, float *);
-  int GPTLprint_memusage (const char *);
-  int GPTLprint_rusage (const char *);
-  int GPTLget_memusage (float *);
+  extern int GPTLget_procsiz (float *, float *);
+  extern int GPTLprint_memusage (const char *);
+  extern int GPTLprint_rusage (const char *);
+  extern int GPTLget_memusage (float *);
 
   // In gptl_papi.cc:
-  int GPTLevent_name_to_code (const char *, int *);
-  int GPTLevent_code_to_name (const int, char *);
+  extern int GPTL_PAPIlibraryinit (void);
+  extern int GPTLevent_name_to_code (const char *, int *);
+  extern int GPTLevent_code_to_name (const int, char *);
 #ifdef __cplusplus
 }
 #endif

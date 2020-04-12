@@ -9,7 +9,9 @@
 #include "once.h"
 #include "thread.h"
 #include "util.h"
+#ifdef HAVE_PAPI
 #include "gptl_papi.h"
+#endif
 
 #ifdef HAVE_TIMES
 #include <sys/times.h>

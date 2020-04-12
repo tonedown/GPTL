@@ -4,6 +4,9 @@
 #include "private.h"
 #include "autoinst.h"
 #include "getoverhead.h"
+#ifdef HAVE_PAPI
+#include "gptl_papi.h"
+#endif
 
 #ifdef HAVE_LIBUNWIND
 #define UNW_LOCAL_ONLY
@@ -120,7 +123,7 @@ namespace gptl_overhead {
 #ifdef HAVE_PAPI
     if (gptl_private::dousepapi) {
       t1 = (*ptr2wtimefunc)();
-      read_counters1000 ();
+      gptl_papi::read_counters1000 ();
       t2 = (*ptr2wtimefunc)();
     } else {
       t1 = 0.;

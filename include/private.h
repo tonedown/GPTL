@@ -1,6 +1,7 @@
 #ifndef PRIVATE_H
 #define PRIVATE_H
 
+#include "config.h"
 #include "gptl.h"  // GPTL_Option
 #include <stdio.h>
 #include <stdlib.h>

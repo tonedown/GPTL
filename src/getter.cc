@@ -3,6 +3,9 @@
 #include "once.h"
 #include "thread.h"
 #include "gptl.h"
+#ifdef HAVE_PAPI
+#include "gptl_papi.h"
+#endif
 
 #include <sys/times.h>
 #include <string.h>
@@ -96,7 +99,7 @@ extern "C" {
     *dusr      = ptr->cpu.accum_utime / (double) ticks_per_sec;
     *dsys      = ptr->cpu.accum_stime / (double) ticks_per_sec;
 #ifdef HAVE_PAPI
-    PAPIquery (&ptr->aux, papicounters_out, maxcounters);
+    gptl_papi::PAPIquery (&ptr->aux, papicounters_out, maxcounters);
 #endif
     return 0;
   }
@@ -335,7 +338,7 @@ extern "C" {
 		    thisfunc, timername);
 
 #ifdef HAVE_PAPI
-    return GPTL_PAPIget_eventvalue (eventname, &ptr->aux, value);
+    return gptl_papi::PAPIget_eventvalue (eventname, &ptr->aux, value);
 #else
     return error ("%s: PAPI not enabled\n", thisfunc); 
 #endif

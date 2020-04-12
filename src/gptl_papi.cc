@@ -10,6 +10,7 @@
 #include "private.h"
 #include "gptl_papi.h"
 #include "gptl.h"
+#include "util.h"
 
 #include <papi.h>
 #include <stdlib.h>
@@ -22,12 +23,47 @@
 #include <pthread.h>
 #endif
 
+
+//*************************************************************************************
+// User-visible functions: need to be outside namespace for callability from C, Fortran
+//*************************************************************************************
+
+/*
+** GPTL_PAPIlibraryinit: Call PAPI_library_init if necessary
+**
+** Return value: 0 (success) or gptl_util::error (failure)
+*/
+int GPTL_PAPIlibraryinit ()
+{
+  using namespace gptl_util;
+  int ret;
+  static const char *thisfunc = "GPTL_PAPIlibraryinit";
+  
+  if ((ret = PAPI_is_initialized ()) == PAPI_NOT_INITED) {
+    if ((ret = PAPI_library_init (PAPI_VER_CURRENT)) != PAPI_VER_CURRENT) {
+      fprintf (stderr, "%s: ret=%d PAPI_VER_CURRENT=%d\n",
+	       thisfunc, ret, (int) PAPI_VER_CURRENT);
+      return error ("%s: PAPI_library_init failure:%s\n", thisfunc, PAPI_strerror (ret));
+    }
+  }
+  return 0;
+}
+
+//*************************************************************************************
+// GPTL-visible functions: put in a local namespace
+//*************************************************************************************
+
 namespace gptl_papi {
   int npapievents = 0;              // number of PAPI events: initialize to 0 
   int nevents = 0;                  // number of events: initialize to 0 
   int *EventSet;                    // list of events to be counted by PAPI
   long_long **papicounters;         // counters returned from PAPI
   bool is_multiplexed = false;      // whether multiplexed (always start false)
+  Entry eventlist[MAX_AUX];          // list of PAPI-based events to be counted
+
+  //*************************************************************************************
+  // private functions to the file: put in anonymous namespace
+  //*************************************************************************************
 
   namespace {
     typedef struct {
@@ -36,7 +72,6 @@ namespace gptl_papi {
       int denomidx;     // derived event: PAPI counter array index for denominator
     } Pr_event;
 
-    Entry eventlist[MAX_AUX];          // list of PAPI-based events to be counted
     int papieventlist[MAX_AUX];        // list of PAPI events to be counted
     Pr_event pr_event[MAX_AUX];        // list of events (PAPI or derived)
 
@@ -173,7 +208,6 @@ namespace gptl_papi {
 	    return n;
 	  }
 	}
-
 	// New event
 	papieventlist[npapievents++] = counter;
 	return npapievents-1;
@@ -263,7 +297,7 @@ namespace gptl_papi {
 
       // Initialize PAPI if it hasn't already been done.
       // From here on down we can assume the intent is to enable (not disable) an option
-      if (PAPIlibraryinit () < 0)
+      if (GPTL_PAPIlibraryinit () < 0)
 	return error ("%s: PAPI library init error\n", thisfunc);
       
       // Ensure max nevents won't be exceeded
@@ -422,31 +456,7 @@ namespace gptl_papi {
       } else {
 	return error ("%s: Can't enable event %s\n", thisfunc, eventname);
       }
-
-      if (verbose)
-	printf ("%s: enabling native event %s\n", thisfunc, pr_event[nevents].event.longstr);
-
       ++nevents;
-      return 0;
-    }
-
-    /*
-    ** PAPIlibraryinit: Call PAPI_library_init if necessary
-    **
-    ** Return value: 0 (success) or gptl_util::error (failure)
-    */
-    int PAPIlibraryinit ()
-    {
-      int ret;
-      static const char *thisfunc = "PAPIlibraryinit";
-
-      if ((ret = PAPI_is_initialized ()) == PAPI_NOT_INITED) {
-	if ((ret = PAPI_library_init (PAPI_VER_CURRENT)) != PAPI_VER_CURRENT) {
-	  fprintf (stderr, "%s: ret=%d PAPI_VER_CURRENT=%d\n",
-		   thisfunc, ret, (int) PAPI_VER_CURRENT);
-	  return error ("%s: PAPI_library_init failure:%s\n", thisfunc, PAPI_strerror (ret));
-	}
-      }
       return 0;
     }
 
@@ -462,7 +472,7 @@ namespace gptl_papi {
     ** Return value: 0 (success) or gptl_util::error or -1 (failure)
     */
     int PAPIinitialize (const int maxthreads, const bool verbose_flag, int *nevents_out,
-			Entry *pr_event_out)
+			Entry pr_event_out[])
     {
       using namespace gptl_util;
       int ret;       // return code
@@ -489,19 +499,19 @@ namespace gptl_papi {
 #endif
 
       // allocate and initialize static local space
-      EventSet     = (int *)        GPTLallocate (maxthreads * sizeof (int), thisfunc);
-      papicounters = (long_long **) GPTLallocate (maxthreads * sizeof (long_long *), thisfunc);
+      EventSet     = (int *)        allocate (maxthreads * sizeof (int), thisfunc);
+      papicounters = (long_long **) allocate (maxthreads * sizeof (long_long *), thisfunc);
 
       for (t = 0; t < maxthreads; t++) {
 	EventSet[t] = PAPI_NULL;
-	papicounters[t] = (long_long *) GPTLallocate (MAX_AUX * sizeof (long_long), thisfunc);
+	papicounters[t] = (long_long *) allocate (MAX_AUX * sizeof (long_long), thisfunc);
       }
 
       *nevents_out = nevents;
       for (n = 0; n < nevents; ++n) {
 	pr_event_out[n].counter = pr_event[n].event.counter;
-	pr_event_out[n].namestr = pr_event[n].event.namestr;
-	pr_event_out[n].str8    = pr_event[n].event.str8;
+	strcpy (pr_event_out[n].namestr, pr_event[n].event.namestr);
+	strcpy (pr_event_out[n].str8   , pr_event[n].event.str8);
       }
       return 0;
     }
@@ -519,6 +529,7 @@ namespace gptl_papi {
     */
     int create_and_start_events (const int t)  // thread number
     {
+      using namespace gptl_util;
       int ret; // return code
       int n;   // loop index over events
       char eventname[PAPI_MAX_STR_LEN]; // returned from PAPI_event_code_to_name
@@ -706,8 +717,6 @@ namespace gptl_papi {
     {
       const char *intfmt   = " %8ld";
       const char *floatfmt = " %8.2e";
-      const char *intfmt;       // integer format
-      const char *floatfmt;     // floating point format
 
       int n;              // loop index
       int numidx;         // index pointer to appropriated (derived) numerator
@@ -763,7 +772,7 @@ namespace gptl_papi {
 	fprintf (fp, "Description of printed events (PAPI and derived):\n");
 	for (n = 0; n < nevents; n++) {
 	  if (strncmp (pr_event[n].event.namestr, "GPTL", 4) == 0) {
-	    fprintf (fp, "  %s: %s\n", pr_event[n].event.namestr, pr_event[n].event.longstr);
+	    fprintf (fp, "  %s\n", pr_event[n].event.namestr);
 	  } else {
 	    nn = pr_event[n].event.counter;
 	    if (PAPI_get_event_info (nn, &info) == PAPI_OK) {
@@ -883,10 +892,11 @@ namespace gptl_papi {
 	}
       }
       if (n == nevents)
-	return error ("%s: event %s not enabled\n", thisfunc, eventname);
+	return gptl_util::error ("%s: event %s not enabled\n", thisfunc, eventname);
       return 0;
     }
 
+    // utility function used in postprocess.cc to read PAPI counters 1000 times
     void read_counters1000 ()
     {
       int i;
@@ -899,5 +909,83 @@ namespace gptl_papi {
       }
       return;
     }
+  }
+
+  /*
+  ** GPTLevent_name_to_code: convert a string to a PAPI code
+  ** or derived event code.
+  **
+  ** Input arguments:
+  **   arg: string to convert
+  **
+  ** Output arguments:
+  **   code: PAPI or GPTL derived code
+  **
+  ** Return value: 0 (success) or error (failure)
+  */
+  int GPTLevent_name_to_code (const char *name, int *code)
+  {
+    using namespace gptl_util;
+    int ret;   // return code
+    int n;     // loop over derived entries
+    static const char *thisfunc = "GPTLevent_name_to_code";
+
+    // First check derived events
+    for (n = 0; n < nderivedentries; ++n) {
+      if (STRMATCH (name, derivedtable[n].namestr)) {
+	*code = derivedtable[n].counter;
+	return 0;
+      }
+    }
+    // Next check PAPI events--note that PAPI must be initialized before the
+    // name_to_code function can be invoked.
+    if ((ret = PAPI_is_initialized ()) == PAPI_NOT_INITED) {
+      printf ("%s: PAPI not initialized. Calling PAPI_library_init()...\n", thisfunc);
+      if ((ret = GPTL_PAPIlibraryinit ()) < 0)
+	return error ("%s: GPTL_PAPIlibraryinit failure\n", thisfunc);
+    }
+    if ((PAPI_event_name_to_code ((char *) name, code)) != PAPI_OK)
+      return error ("%s: PAPI_event_name_to_code failure\n", thisfunc);
+
+    return 0;
+  }
+
+  /*
+  ** GPTLevent_code_to_name: convert a string to a PAPI code
+  ** or derived event code.
+  **
+  ** Input arguments:
+  **   code: event code (PAPI or derived)
+  **
+  ** Output arguments:
+  **   name: string corresponding to code
+  **
+  ** Return value: 0 (success) or error (failure)
+  */
+  int GPTLevent_code_to_name (const int code, char *name)
+  {
+    using namespace gptl_util;
+    int ret;   // return code
+    int n;     // loop over derived entries
+    static const char *thisfunc = "GPTLevent_code_to_name";
+
+    // First check derived events
+    for (n = 0; n < nderivedentries; ++n) {
+      if (code == derivedtable[n].counter) {
+	strcpy (name, derivedtable[n].namestr);
+	return 0;
+      }
+    }
+    // Next check PAPI events--note that PAPI must be initialized before the
+    // code_to_name function can be invoked.
+    if ((ret = PAPI_is_initialized ()) == PAPI_NOT_INITED) {
+      printf ("%s: PAPI not initialized. Calling PAPI_library_init()...\n", thisfunc);
+      if ((ret = GPTL_PAPIlibraryinit ()) < 0)
+	return error ("%s: GPTL_PAPIlibraryinit failure\n", thisfunc);
+    }
+    if (PAPI_event_code_to_name (code, name) != PAPI_OK)
+      return error ("%s: PAPI_event_code_to_name failure\n", thisfunc);
+
+    return 0;
   }
 }

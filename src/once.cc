@@ -5,11 +5,14 @@
 #include "postprocess.h"
 #include "private.h"
 #include "gptl.h"   // user-visible prototypes
+#ifdef HAVE_PAPI
+#include "gptl_papi.h"
+#endif
 
 #include <stdio.h>
-#include <ctype.h>         // isdigit
+#include <ctype.h>     // isdigit
 #include <time.h>      // time_t
-#include <stdlib.h>        // atof
+#include <stdlib.h>    // atof
 #include <string.h>
 #include <unistd.h>    // sysconf
 
@@ -251,7 +254,7 @@ extern "C" {
     case GPTLverbose: 
       verbose = (bool) val; 
 #ifdef HAVE_PAPI
-      (void) GPTL_PAPIsetoption (GPTLverbose, val);
+      (void) gptl_papi::PAPIsetoption (GPTLverbose, val);
 #endif
       if (verbose)
 	printf ("%s: boolean verbose = %d\n", thisfunc, val);
@@ -327,7 +330,7 @@ extern "C" {
     }
 
 #ifdef HAVE_PAPI
-    if (GPTL_PAPIsetoption (option, val) == 0) {
+    if (gptl_papi::PAPIsetoption (option, val) == 0) {
       if (val)
 	dousepapi = true;
       return 0;
@@ -389,6 +392,9 @@ extern "C" {
     using namespace gptl_util;
     using namespace gptl_thread;
     using namespace gptl_private;
+#ifdef HAVE_PAPI
+    using namespace gptl_papi;
+#endif
     int i;          // loop index
     int t;          // thread index
     double t1, t2;  // returned from underlying timer
@@ -433,7 +439,7 @@ extern "C" {
     }
 
 #ifdef HAVE_PAPI
-    if (PAPIinitialize (maxthreads, verbose, &GPTLnevents, GPTLeventlist) < 0)
+    if (PAPIinitialize (maxthreads, verbose, &nevents, eventlist) < 0)
       return error ("%s: Failure from PAPIinitialize\n", thisfunc);
 #endif
 
@@ -496,7 +502,7 @@ extern "C" {
 	}
 	if (ptr->nchildren > 0)
 	  free (ptr->children);
-	free (ptr);
+	delete ptr;
       }
     }
 
@@ -510,7 +516,7 @@ extern "C" {
     (void) GPTLreset_errors ();
 
 #ifdef HAVE_PAPI
-    PAPIfinalize (maxthreads);
+    gptl_papi::PAPIfinalize (maxthreads);
 #endif
 
     // Reset initial values
@@ -531,7 +537,7 @@ extern "C" {
     dopr_preamble = true;
     dopr_threadsort = true;
     dopr_multparent = true;
-    dopr_collision = true;
+    dopr_collision = false;
     ref_gettimeofday = -1;
     ref_clock_gettime = -1;
 #ifdef _AIX

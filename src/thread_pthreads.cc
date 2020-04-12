@@ -174,7 +174,7 @@ static inline int get_thread_num (void)
   ** When HAVE_PAPI is true, if 1 or more PAPI events are enabled,
   ** create and start an event set for the new thread.
   */
-  if (gptl_papi::npapievents () > 0) {
+  if (gptl_papi::npapievents > 0) {
 #ifdef VERBOSE
     printf ("GPTL: PTHREADS %s: Starting EventSet GPTLthreadid=%lu location=%d\n", 
             thisfunc, (unsigned long) mythreadid, nthreads);

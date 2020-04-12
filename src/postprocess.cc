@@ -5,6 +5,9 @@
 #include "postprocess.h"
 #include "util.h"
 #include "thread.h"
+#ifdef HAVE_PAPI
+#include "gptl_papi.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -149,7 +152,7 @@ int GPTLpr_file (const char *outfile)
       fprintf (fp, "  PAPI event multiplexing was ON\n");
     else
       fprintf (fp, "  PAPI event multiplexing was OFF\n");
-    PAPIprintenabled (fp);
+    gptl_papi::PAPIprintenabled (fp);
   }
 #else
   fprintf (fp, "HAVE_PAPI was false\n");
@@ -444,7 +447,7 @@ namespace {
 #endif
 
 #ifdef HAVE_PAPI
-      PAPIprstr (fp);
+      gptl_papi::PAPIprstr (fp);
 #endif
       fprintf (fp, "\n");
       return;
@@ -793,9 +796,8 @@ namespace {
 #endif
   
 #ifdef HAVE_PAPI
-      PAPIpr (fp, &timer->aux, t, timer->count, timer->wall.accum);
+      gptl_papi::PAPIpr (fp, &timer->aux, t, timer->count, timer->wall.accum);
 #endif
-
       fprintf (fp, "\n");
     }
 
@@ -850,7 +852,7 @@ namespace {
 	tout->cpu.accum_stime += tin->cpu.accum_stime;
       }
 #ifdef HAVE_PAPI
-      PAPIadd (&tout->aux, &tin->aux);
+      gptl_papi::PAPIadd (&tout->aux, &tin->aux);
 #endif
     }
 
@@ -916,9 +918,8 @@ namespace {
 	  }
 	  most = MAX (most, nument);
 	}
-    
+	fprintf (fp, "Total collisions thread %d = %d\n", t, totent);
 	if (totent > 0) {
-	  fprintf (fp, "Total collisions thread %d = %d\n", t, totent);
 	  fprintf (fp, "Entry information:\n");
 	  fprintf (fp, "num_zero = %d num_one = %d num_two = %d num_more = %d\n",
 		   num_zero, num_one, num_two, num_more);

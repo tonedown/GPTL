@@ -1,7 +1,9 @@
 #include "config.h" // Must be first include
 #include "thread.h"
 #include "util.h"
+#ifdef HAVE_PAPI
 #include "gptl_papi.h"
+#endif
 
 #include <omp.h>
 #include <stdio.h>
@@ -129,12 +131,12 @@ namespace gptl_thread {
 
       // When HAVE_PAPI is true, if 1 or more PAPI events are enabled,
       // create and start an event set for the new thread.
-      if (gptl_papi::npapievents () > 0) {
+      if (gptl_papi::npapievents > 0) {
 #ifdef VERBOSE
 	printf ("GPTL: OMP %s: Starting EventSet t=%d\n", thisfunc, t);
 #endif
 
-	if (create_and_start_events (t) < 0)
+	if (gptl_papi::create_and_start_events (t) < 0)
 	  return error ("GPTL: OMP %s: error from GPTLcreate_and_start_events for thread %d\n", 
 			thisfunc, t);
       }
