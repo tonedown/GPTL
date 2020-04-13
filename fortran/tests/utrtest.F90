@@ -39,7 +39,7 @@ program utrtest
 
   narg = command_argument_count ()
   n = 1
-  do while (n < narg)
+  do while (n <= narg)
     call get_command_argument (n, arg)
     if (trim(arg) == '-n') then
       enable_name = .false.
