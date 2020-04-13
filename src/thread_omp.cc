@@ -1,6 +1,7 @@
 #include "config.h" // Must be first include
 #include "thread.h"
 #include "util.h"
+#include "private.h"
 #ifdef HAVE_PAPI
 #include "gptl_papi.h"
 #endif

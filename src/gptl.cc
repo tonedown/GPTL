@@ -666,7 +666,6 @@ namespace gptl_private {
 				    const int t)
     {
       using namespace gptl_util;
-      using namespace gptl_papi;
       double delta;      // difference
       int bidx;          // bottom of call stack
       Timer *bptr;       // pointer to last entry in call stack
@@ -675,7 +674,7 @@ namespace gptl_private {
       ptr->onflg = false;
 
 #ifdef HAVE_PAPI
-      if (dousepapi && PAPIstop (t, &ptr->aux) < 0)
+      if (dousepapi && gptl_papi::PAPIstop (t, &ptr->aux) < 0)
 	return error ("%s: error from PAPIstop\n", thisfunc);
 #endif
 

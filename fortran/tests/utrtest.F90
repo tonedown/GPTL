@@ -3,15 +3,12 @@ program utrtest
 #ifdef THREADED_OMP
   use omp_lib
 #endif
-
   implicit none
-
-  external :: sub
 
   logical :: enable_name = .true.     ! true means include non-handle start/stop routines
   logical :: enable_handle = .true.   ! true means include handle start/stop routines
   logical :: enable_nullterm = .true. ! true means include passing null-terminated vars
-  logical :: enable_autoprof = .false. ! true means include auto-profiling
+  logical :: enable_autoprof = .true. ! true means include auto-profiling
   double precision :: sum = 0.
   integer :: ret
   integer :: handle1 = 0
@@ -157,16 +154,16 @@ program utrtest
   end if
 
   if (enable_autoprof) then
-    ret = gptlstart ('total_handle_autoprof'//char(0))
-    call sub_autoprof1 (sum)
-    call sub_autoprof10 (sum)
-    call sub_autoprof100 (sum)
-    call sub_autoprof1000 (sum)
-    call sub_autoprof10000 (sum)
-    call sub_autoprof100000 (sum)
-    call sub_autoprof1000000 (sum)
-    call sub_autoprof10000000 (sum)
-    ret = gptlstop ('total_handle_autoprof'//char(0))
+    ret = gptlstart ('total_autoprof'//char(0))
+    call sub_autoprof (10000000, 1, sum)
+    call sub_autoprof (1000000, 10, sum)
+    call sub_autoprof (100000, 100, sum)
+    call sub_autoprof (10000, 1000, sum)
+    call sub_autoprof (1000, 10000, sum)
+    call sub_autoprof (100, 100000, sum)
+    call sub_autoprof (10, 1000000, sum)
+    call sub_autoprof (1, 10000000, sum)
+    ret = gptlstop ('total_autoprof'//char(0))
   end if
 
   ret = gptlpr (-1)  ! negative number means write to stderr
@@ -208,8 +205,7 @@ end subroutine sub
 subroutine sub_handle (outer, inner, name, sum, handle)
   use gptl
   implicit none
-  integer, intent(in) :: outer
-  integer, intent(in) :: inner
+  integer, intent(in) :: outer, inner
   character(len=*), intent(in) :: name
   double precision, intent(inout) :: sum
   integer, intent(inout) :: handle
@@ -224,92 +220,45 @@ subroutine sub_handle (outer, inner, name, sum, handle)
 end subroutine sub_handle
 
 ! Begin auto-profiled routines
-subroutine sub_autoprof1 (sum)
+subroutine sub_autoprof (outer, inner, sum)
   implicit none
-  integer, parameter :: outer = 1, inner = 10000000
+  integer, intent(in) :: outer, inner
   integer :: i
   double precision, intent(inout) :: sum
-  do i=0,outer-1
-    call innersub (inner, sum)
-  end do
-end subroutine sub_autoprof1
-
-subroutine sub_autoprof10 (sum)
-  implicit none
-  integer, parameter :: outer = 10, inner = 1000000
-  integer :: i
-  double precision, intent(inout) :: sum
-  do i=0,outer-1
-    call innersub (inner, sum)
-  end do
-end subroutine sub_autoprof10
-
-subroutine sub_autoprof100 (sum)
-  implicit none
-  integer, parameter :: outer = 100, inner = 100000
-  integer :: i
-  double precision, intent(inout) :: sum
-  do i=0,outer-1
-    call innersub (inner, sum)
-  end do
-end subroutine sub_autoprof100
-
-subroutine sub_autoprof1000 (sum)
-  implicit none
-  integer, parameter :: outer = 1000, inner = 10000
-  integer :: i
-  double precision, intent(inout) :: sum
-  do i=0,outer-1
-    call innersub (inner, sum)
-  end do
-end subroutine sub_autoprof1000
-
-subroutine sub_autoprof10000 (sum)
-  implicit none
-  integer, parameter :: outer = 10000, inner = 1000
-  integer :: i
-  double precision, intent(inout) :: sum
-  do i=0,outer-1
-    call innersub (inner, sum)
-  end do
-end subroutine sub_autoprof10000
-
-subroutine sub_autoprof100000 (sum)
-  implicit none
-  integer, parameter :: outer = 100000, inner = 100
-  integer :: i
-  double precision, intent(inout) :: sum
-  do i=0,outer-1
-    call innersub (inner, sum)
-  end do
-end subroutine sub_autoprof100000
-
-subroutine sub_autoprof1000000 (sum)
-  implicit none
-  integer, parameter :: outer = 1000000, inner = 10
-  integer :: i
-  double precision, intent(inout) :: sum
-  do i=0,outer-1
-    call innersub (inner, sum)
-  end do
-end subroutine sub_autoprof1000000
-
-subroutine sub_autoprof10000000 (sum)
-  implicit none
-  integer, parameter :: outer = 10000000, inner = 1
-  integer :: i
-  double precision, intent(inout) :: sum
-  do i=0,outer-1
-    call innersub (inner, sum)
-  end do
-end subroutine sub_autoprof10000000
-
-subroutine innersub (inner, sum)
-  implicit none
-  integer, intent(in) :: inner
-  double precision, intent(inout) :: sum
-  integer :: j
-  do j=0,inner-1
-    sum = sum + j
-  end do
-end subroutine innersub
+  select case (outer)
+  case (1)
+    do i=0,outer-1
+      call innersub1 (inner, sum)
+    end do
+  case (10)
+    do i=0,outer-1
+      call innersub10 (inner, sum)
+    end do
+  case (100)
+    do i=0,outer-1
+      call innersub100 (inner, sum)
+    end do
+  case (1000)
+    do i=0,outer-1
+      call innersub1000 (inner, sum)
+    end do
+  case (10000)
+    do i=0,outer-1
+      call innersub10000 (inner, sum)
+    end do
+  case (100000)
+    do i=0,outer-1
+      call innersub100000 (inner, sum)
+    end do
+  case (1000000)
+    do i=0,outer-1
+      call innersub1000000 (inner, sum)
+    end do
+  case (10000000)
+    do i=0,outer-1
+      call innersub10000000 (inner, sum)
+    end do
+  case default
+    write(6,*)'outer=',outer,' not known'
+  end select
+end subroutine sub_autoprof

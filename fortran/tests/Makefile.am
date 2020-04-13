@@ -34,8 +34,14 @@ summary_SOURCES    = summary.F90    ${MODFILE}
 
 handle_SOURCES     = handle.F90     ${MODFILE}
 overhead_SOURCES   = overhead.F90   ${MODFILE}
-utrtest_SOURCES    = utrtest.F90    ${MODFILE}
 legacy_SOURCES     = legacy.F
+
+# Hack found online to compile input files differently: Use a lib
+noinst_LIBRARIES      = libprofsubs.a
+utrtest_LDADD         = libprofsubs.a
+utrtest_SOURCES       = utrtest.F90 ${MODFILE}
+libprofsubs_a_SOURCES = autoprofsubs.F90
+libprofsubs_a_FCFLAGS = @INSTRFLAG@
 
 if HAVE_FORT_OPENMP
 check_PROGRAMS += omptest
