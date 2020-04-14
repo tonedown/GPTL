@@ -6,7 +6,6 @@
 ** Contains routines which interface to PAPI library
 */
 #include "config.h" // Must be first include
- 
 #include "private.h"
 #include "gptl_papi.h"
 #include "gptl.h"
@@ -35,7 +34,6 @@
 */
 int GPTL_PAPIlibraryinit ()
 {
-  using namespace gptl_util;
   int ret;
   static const char *thisfunc = "GPTL_PAPIlibraryinit";
   
@@ -43,7 +41,7 @@ int GPTL_PAPIlibraryinit ()
     if ((ret = PAPI_library_init (PAPI_VER_CURRENT)) != PAPI_VER_CURRENT) {
       fprintf (stderr, "%s: ret=%d PAPI_VER_CURRENT=%d\n",
 	       thisfunc, ret, (int) PAPI_VER_CURRENT);
-      return error ("%s: PAPI_library_init failure:%s\n", thisfunc, PAPI_strerror (ret));
+      return gptl_util::error ("%s: PAPI_library_init failure:%s\n", thisfunc, PAPI_strerror (ret));
     }
   }
   return 0;
@@ -223,12 +221,12 @@ namespace gptl_papi {
       */
       int getderivedidx (int dcounter)
       {
-	using namespace gptl_util;
 	for (int n = 0; n < nderivedentries; ++n) {
 	  if (derivedtable[n].counter == dcounter)
 	    return n;
 	}
-	return error ("GPTL: getderivedidx: failed to find derived counter %d\n", dcounter);
+	return gptl_util::error ("GPTL: getderivedidx: failed to find derived counter %d\n",
+				 dcounter);
       }
     }
   };
@@ -249,7 +247,6 @@ namespace gptl_papi {
     
     int PAPIsetoption (const int counter, const int val)
     {
-      using namespace gptl_util;
       int n;       // loop index
       int ret;     // return code
       int numidx;  // numerator index
@@ -284,7 +281,8 @@ namespace gptl_papi {
       */
       if (! val) {
 	if (already_enabled (counter))
-	  return error ("%s: already enabled counter %d cannot be disabled\n", thisfunc, counter);
+	  return gptl_util::error ("%s: already enabled counter %d cannot be disabled\n",
+				   thisfunc, counter);
 	else
 	  if (verbose)
 	    printf ("%s: 'disable' %d currently is just a no-op\n", thisfunc, counter);
@@ -293,23 +291,23 @@ namespace gptl_papi {
 
       // If the event has already been enabled for printing, exit
       if (already_enabled (counter))
-	return error ("%s: counter %d has already been enabled\n", thisfunc, counter);
+	return gptl_util::error ("%s: counter %d has already been enabled\n", thisfunc, counter);
 
       // Initialize PAPI if it hasn't already been done.
       // From here on down we can assume the intent is to enable (not disable) an option
       if (GPTL_PAPIlibraryinit () < 0)
-	return error ("%s: PAPI library init error\n", thisfunc);
+	return gptl_util::error ("%s: PAPI library init error\n", thisfunc);
       
       // Ensure max nevents won't be exceeded
       if (nevents+1 > MAX_AUX)
-	return error ("%s: %d is too many events. Value defined in private.h\n",
-		      thisfunc, nevents+1);
+	return gptl_util::error ("%s: %d is too many events. Value defined in private.h\n",
+				 thisfunc, nevents+1);
 
       // Check derived events
       switch (counter) {
       case GPTL_IPC:
 	if ( ! canenable2 (PAPI_TOT_INS, PAPI_TOT_CYC))
-	  return error ("%s: GPTL_IPC unavailable\n", thisfunc);
+	  return gptl_util::error ("%s: GPTL_IPC unavailable\n", thisfunc);
 
 	idx = getderivedidx (GPTL_IPC);
 	pr_event[nevents].event    = derivedtable[idx];
@@ -337,13 +335,13 @@ namespace gptl_papi {
 	    printf ("%s: enabling derived event %s = PAPI_L1_DCA / PAPI_TOT_INS\n", 
 		    thisfunc, pr_event[nevents].event.namestr);
 	} else {
-	  return error ("%s: GPTL_LSTPI unavailable\n", thisfunc);
+	  return gptl_util::error ("%s: GPTL_LSTPI unavailable\n", thisfunc);
 	}
 	++nevents;
 	return 0;
       case GPTL_DCMRT:
 	if ( ! canenable2 (PAPI_L1_DCM, PAPI_L1_DCA))
-	  return error ("%s: GPTL_DCMRT unavailable\n", thisfunc);
+	  return gptl_util::error ("%s: GPTL_DCMRT unavailable\n", thisfunc);
 
 	idx = getderivedidx (GPTL_DCMRT);
 	pr_event[nevents].event    = derivedtable[idx];
@@ -371,7 +369,7 @@ namespace gptl_papi {
 	    printf ("%s: enabling derived event %s = PAPI_L1_DCA / PAPI_L1_DCM\n", 
 		    thisfunc, pr_event[nevents].event.namestr);
 	} else {
-	  return error ("%s: GPTL_LSTPDCM unavailable\n", thisfunc);
+	  return gptl_util::error ("%s: GPTL_LSTPDCM unavailable\n", thisfunc);
 	}
 	++nevents;
 	return 0;
@@ -379,7 +377,7 @@ namespace gptl_papi {
 	// For L2 counts, use TC* instead of DC* to avoid PAPI derived events
       case GPTL_L2MRT:
 	if ( ! canenable2 (PAPI_L2_TCM, PAPI_L2_TCA))
-	  return error ("%s: GPTL_L2MRT unavailable\n", thisfunc);
+	  return gptl_util::error ("%s: GPTL_L2MRT unavailable\n", thisfunc);
 
 	idx = getderivedidx (GPTL_L2MRT);
 	pr_event[nevents].event    = derivedtable[idx];
@@ -407,13 +405,13 @@ namespace gptl_papi {
 	    printf ("%s: enabling derived event %s = PAPI_L1_DCA / PAPI_L2_TCM\n", 
 		    thisfunc, pr_event[nevents].event.namestr);
 	} else {
-	  return error ("%s: GPTL_LSTPL2M unavailable\n", thisfunc);
+	  return gptl_util::error ("%s: GPTL_LSTPL2M unavailable\n", thisfunc);
 	}
 	++nevents;
 	return 0;
       case GPTL_L3MRT:
 	if ( ! canenable2 (PAPI_L3_TCM, PAPI_L3_TCR))
-	  return error ("%s: GPTL_L3MRT unavailable\n", thisfunc);
+	  return gptl_util::error ("%s: GPTL_L3MRT unavailable\n", thisfunc);
 
 	idx = getderivedidx (GPTL_L3MRT);
 	pr_event[nevents].event    = derivedtable[idx];
@@ -430,7 +428,7 @@ namespace gptl_papi {
 
       // Check PAPI events: If PAPI_event_code_to_name fails, give up
       if ((ret = PAPI_event_code_to_name (counter, eventname)) != PAPI_OK)
-	return error ("%s: name not found for counter %d: PAPI_strerror: %s\n", 
+	return gptl_util::error ("%s: name not found for counter %d: PAPI_strerror: %s\n", 
 		      thisfunc, counter, PAPI_strerror (ret));
 
       // Truncate eventname, except strip off PAPI_ for the shortest
@@ -454,7 +452,7 @@ namespace gptl_papi {
 	  pr_event[nevents].denomidx = -1;     // flag says not derived (no denominator)
 	}
       } else {
-	return error ("%s: Can't enable event %s\n", thisfunc, eventname);
+	return gptl_util::error ("%s: Can't enable event %s\n", thisfunc, eventname);
       }
       ++nevents;
       return 0;
@@ -474,7 +472,6 @@ namespace gptl_papi {
     int PAPIinitialize (const int maxthreads, const bool verbose_flag, int *nevents_out,
 			Entry pr_event_out[])
     {
-      using namespace gptl_util;
       int ret;       // return code
       int n;         // loop index
       int t;         // thread index
@@ -483,19 +480,19 @@ namespace gptl_papi {
       verbose = verbose_flag;
       
       if (maxthreads < 1)
-	return error ("%s: maxthreads = %d\n", thisfunc, maxthreads);
+	return gptl_util::error ("%s: maxthreads = %d\n", thisfunc, maxthreads);
 
       // Ensure that PAPI_library_init has already been called
       if ((ret = GPTL_PAPIlibraryinit ()) < 0)
-	return error ("%s: GPTL_PAPIlibraryinit failure\n", thisfunc);
+	return gptl_util::error ("%s: GPTL_PAPIlibraryinit failure\n", thisfunc);
 
       // PAPI_thread_init needs to be called if threading enabled
 #if ( defined THREADED_OMP )
       if (PAPI_thread_init ((unsigned long (*)(void)) (omp_get_thread_num)) != PAPI_OK)
-	return error ("%s: PAPI_thread_init failure\n", thisfunc);
+	return gptl_util::error ("%s: PAPI_thread_init failure\n", thisfunc);
 #elif ( defined THREADED_PTHREADS )
       if (PAPI_thread_init ((unsigned long (*)(void)) (pthread_self)) != PAPI_OK)
-	return error ("%s: PAPI_thread_init failure\n", thisfunc);
+	return gptl_util::error ("%s: PAPI_thread_init failure\n", thisfunc);
 #endif
 
       // allocate and initialize static local space
@@ -529,7 +526,6 @@ namespace gptl_papi {
     */
     int create_and_start_events (const int t)  // thread number
     {
-      using namespace gptl_util;
       int ret; // return code
       int n;   // loop index over events
       char eventname[PAPI_MAX_STR_LEN]; // returned from PAPI_event_code_to_name
@@ -537,13 +533,13 @@ namespace gptl_papi {
 
       // Set the domain to count all contexts. Only needs to be set once for all threads
       if ((ret = PAPI_set_domain (PAPI_DOM_ALL)) != PAPI_OK)
-	return error ("%s: thread %d failure setting PAPI domain: %s\n", 
-		      thisfunc, t, PAPI_strerror (ret));
+	return gptl_util::error ("%s: thread %d failure setting PAPI domain: %s\n", 
+				 thisfunc, t, PAPI_strerror (ret));
   
       // Create the event set
       if ((ret = PAPI_create_eventset (&EventSet[t])) != PAPI_OK)
-	return error ("%s: thread %d failure creating eventset: %s\n", 
-		      thisfunc, t, PAPI_strerror (ret));
+	return gptl_util::error ("%s: thread %d failure creating eventset: %s\n", 
+				 thisfunc, t, PAPI_strerror (ret));
 
       if (verbose)
 	printf ("%s: successfully created eventset for thread %d\n", thisfunc, t);
@@ -563,37 +559,40 @@ namespace gptl_papi {
 	    is_multiplexed = true;
 	    break;
 	  } else
-	    return error ("enable_multiplexing is false: giving up\n");
+	    return gptl_util::error ("enable_multiplexing is false: giving up\n");
 	}
       }
 
       if (is_multiplexed) {
 	// Cleanup the eventset for multiplexing
 	if ((ret = PAPI_cleanup_eventset (EventSet[t])) != PAPI_OK)
-	  return error ("%s: %s\n", thisfunc, PAPI_strerror (ret));
+	  return gptl_util::error ("%s: %s\n", thisfunc, PAPI_strerror (ret));
     
 	if ((ret = PAPI_destroy_eventset (&EventSet[t])) != PAPI_OK)
-	  return error ("%s: %s\n", thisfunc, PAPI_strerror (ret));
+	  return gptl_util::error ("%s: %s\n", thisfunc, PAPI_strerror (ret));
 
 	if ((ret = PAPI_create_eventset (&EventSet[t])) != PAPI_OK)
-	  return error ("%s: failure creating eventset: %s\n", thisfunc, PAPI_strerror (ret));
+	  return gptl_util::error ("%s: failure creating eventset: %s\n",
+				   thisfunc, PAPI_strerror (ret));
 			
 	// Assign EventSet to component 0 (cpu). This step is MANDATORY in recent PAPI releases
 	// in order to enable event multiplexing
 	if ((ret = PAPI_assign_eventset_component (EventSet[t], 0)) != PAPI_OK)
-	  return error ("%s: thread %d failure in PAPI_assign_eventset_component: %s\n", 
-			thisfunc, t, PAPI_strerror (ret));
+	  return gptl_util::error ("%s: thread %d failure in PAPI_assign_eventset_component: %s\n", 
+				   thisfunc, t, PAPI_strerror (ret));
 
 	if ((ret = PAPI_multiplex_init ()) != PAPI_OK)
-	  return error ("%s: failure from PAPI_multiplex_init%s\n", thisfunc, PAPI_strerror (ret));
+	  return gptl_util::error ("%s: failure from PAPI_multiplex_init%s\n",
+				   thisfunc, PAPI_strerror (ret));
 
 	if ((ret = PAPI_set_multiplex (EventSet[t])) != PAPI_OK)
-	  return error ("%s: failure from PAPI_set_multiplex: %s\n", thisfunc, PAPI_strerror (ret));
+	  return gptl_util::error ("%s: failure from PAPI_set_multiplex: %s\n",
+				   thisfunc, PAPI_strerror (ret));
 
 	for (n = 0; n < npapievents; n++) {
 	  if ((ret = PAPI_add_event (EventSet[t], papieventlist[n])) != PAPI_OK) {
 	    ret = PAPI_event_code_to_name (papieventlist[n], eventname);
-	    return error ("%s: failure adding event:%s Error was: %s\n", 
+	    return gptl_util::error ("%s: failure adding event:%s Error was: %s\n", 
 			  thisfunc, eventname, PAPI_strerror (ret));
 	  }
 	}
@@ -601,7 +600,8 @@ namespace gptl_papi {
 
       // Start the event set.  It will only be read from now on--never stopped
       if ((ret = PAPI_start (EventSet[t])) != PAPI_OK)
-	return error ("%s: failed to start event set: %s\n", thisfunc, PAPI_strerror (ret));
+	return gptl_util::error ("%s: failed to start event set: %s\n",
+				 thisfunc, PAPI_strerror (ret));
 
       return 0;
     }
@@ -618,9 +618,8 @@ namespace gptl_papi {
     **
     ** Return value: 0 (success) or gptl_util::error (failure)
     */
-    int PAPIstart (const int t, Papistats *aux)
+    int PAPIstart (const int t, gptl_private::Papistats *aux)
     {
-      using namespace gptl_util;
       int ret;  // return code from PAPI lib calls
       int n;    // loop index
       static const char *thisfunc = "GPTL_PAPIstart";
@@ -653,9 +652,8 @@ namespace gptl_papi {
     **
     ** Return value: 0 (success) or gptl_util::error (failure)
     */
-    int PAPIstop (const int t, Papistats *aux)
+    int PAPIstop (const int t, gptl_private::Papistats *aux)
     {
-      using namespace gptl_util;
       int ret;          // return code from PAPI lib calls
       int n;            // loop index
       long_long delta;  // change in counters from previous read
@@ -667,7 +665,7 @@ namespace gptl_papi {
 
       // Read the counters
       if ((ret = PAPI_read (EventSet[t], papicounters[t])) != PAPI_OK)
-	return error ("%s: %s\n", thisfunc, PAPI_strerror (ret));
+	return gptl_util::error ("%s: %s\n", thisfunc, PAPI_strerror (ret));
   
       /* 
       ** Accumulate the difference since timer start in aux.
@@ -713,7 +711,8 @@ namespace gptl_papi {
     **   fp: file descriptor
     **   aux: struct containing the counters
     */
-    void PAPIpr (FILE *fp, const Papistats *aux, const int t, const int count, const double wcsec)
+    void PAPIpr (FILE *fp, const gptl_private::Papistats *aux, const int t, const int count,
+		 const double wcsec)
     {
       const char *intfmt   = " %8ld";
       const char *floatfmt = " %8.2e";
@@ -731,7 +730,8 @@ namespace gptl_papi {
 
 #ifdef DEBUG
 	  printf ("%s: derived event: numidx=%d denomidx=%d values = %ld %ld\n", 
-		  thisfunc, numidx, denomidx, (long) aux->accum[numidx], (long) aux->accum[denomidx]);
+		  thisfunc, numidx, denomidx, (long) aux->accum[numidx],
+		  (long) aux->accum[denomidx]);
 #endif
 	  // Protect against divide by zero
 	  if (aux->accum[denomidx] > 0)
@@ -800,11 +800,9 @@ namespace gptl_papi {
     ** Input args:
     **   auxin: counters to be summed into auxout
     */
-    void PAPIadd (Papistats *auxout, const Papistats *auxin)
+    void PAPIadd (gptl_private::Papistats *auxout, const gptl_private::Papistats *auxin)
     {
-      int n;
-      
-      for (n = 0; n < npapievents; n++)
+      for (int n = 0; n < npapievents; n++)
 	if (auxin->accum[n] == BADCOUNT || auxout->accum[n] == BADCOUNT)
 	  auxout->accum[n] = BADCOUNT;
 	else
@@ -815,10 +813,9 @@ namespace gptl_papi {
     //   region. Free all malloc'd space
     void PAPIfinalize (int maxthreads)
     {
-      int t;   // thread index
       int ret; // return code
 
-      for (t = 0; t < maxthreads; t++) {
+      for (int t = 0; t < maxthreads; t++) {
 	ret = PAPI_stop (EventSet[t], papicounters[t]);
 	free (papicounters[t]);
 	ret = PAPI_cleanup_eventset (EventSet[t]);
@@ -848,7 +845,7 @@ namespace gptl_papi {
     ** Output args:
     **   papicounters_out: current value of PAPI counters
     */
-    void PAPIquery (const Papistats *aux, long long *papicounters_out, int ncounters)
+    void PAPIquery (const gptl_private::Papistats *aux, long long *papicounters_out, int ncounters)
     {
       if (ncounters > 0) {
 	for (int n = 0; n < ncounters && n < npapievents; n++) {
@@ -869,7 +866,8 @@ namespace gptl_papi {
     **
     ** Return value: 0 (success) or gptl_util::error (failure)
     */
-    int PAPIget_eventvalue (const char *eventname, const Papistats *aux, double *value)
+    int PAPIget_eventvalue (const char *eventname, const gptl_private::Papistats *aux,
+			    double *value)
     {
       int n;        // loop index through enabled events
       int numidx;   // numerator index into papicounters
@@ -899,12 +897,11 @@ namespace gptl_papi {
     // utility function used in postprocess.cc to read PAPI counters 1000 times
     void read_counters1000 ()
     {
-      int i;
       int ret;
       long_long counters[MAX_AUX];
       
 #pragma unroll(10)
-      for (i = 0; i < 1000; ++i) {
+      for (int i = 0; i < 1000; ++i) {
 	ret = PAPI_read (EventSet[0], counters);
       }
       return;
@@ -925,7 +922,6 @@ namespace gptl_papi {
   */
   int GPTLevent_name_to_code (const char *name, int *code)
   {
-    using namespace gptl_util;
     int ret;   // return code
     int n;     // loop over derived entries
     static const char *thisfunc = "GPTLevent_name_to_code";
@@ -942,10 +938,10 @@ namespace gptl_papi {
     if ((ret = PAPI_is_initialized ()) == PAPI_NOT_INITED) {
       printf ("%s: PAPI not initialized. Calling PAPI_library_init()...\n", thisfunc);
       if ((ret = GPTL_PAPIlibraryinit ()) < 0)
-	return error ("%s: GPTL_PAPIlibraryinit failure\n", thisfunc);
+	return gptl_util::error ("%s: GPTL_PAPIlibraryinit failure\n", thisfunc);
     }
     if ((PAPI_event_name_to_code ((char *) name, code)) != PAPI_OK)
-      return error ("%s: PAPI_event_name_to_code failure\n", thisfunc);
+      return gptl_util::error ("%s: PAPI_event_name_to_code failure\n", thisfunc);
 
     return 0;
   }
@@ -964,13 +960,11 @@ namespace gptl_papi {
   */
   int GPTLevent_code_to_name (const int code, char *name)
   {
-    using namespace gptl_util;
     int ret;   // return code
-    int n;     // loop over derived entries
     static const char *thisfunc = "GPTLevent_code_to_name";
 
     // First check derived events
-    for (n = 0; n < nderivedentries; ++n) {
+    for (int n = 0; n < nderivedentries; ++n) {
       if (code == derivedtable[n].counter) {
 	strcpy (name, derivedtable[n].namestr);
 	return 0;
@@ -981,10 +975,10 @@ namespace gptl_papi {
     if ((ret = PAPI_is_initialized ()) == PAPI_NOT_INITED) {
       printf ("%s: PAPI not initialized. Calling PAPI_library_init()...\n", thisfunc);
       if ((ret = GPTL_PAPIlibraryinit ()) < 0)
-	return error ("%s: GPTL_PAPIlibraryinit failure\n", thisfunc);
+	return gptl_util::error ("%s: GPTL_PAPIlibraryinit failure\n", thisfunc);
     }
     if (PAPI_event_code_to_name (code, name) != PAPI_OK)
-      return error ("%s: PAPI_event_code_to_name failure\n", thisfunc);
+      return gptl_util::error ("%s: PAPI_event_code_to_name failure\n", thisfunc);
 
     return 0;
   }

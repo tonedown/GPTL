@@ -1,4 +1,5 @@
 #include "config.h" // Must be first include.
+#include "defines.h"
 #include "private.h"
 #include "autoinst.h"
 #include "once.h"
@@ -15,6 +16,8 @@
 #ifdef HAVE_BACKTRACE
 #include <execinfo.h>
 #endif
+
+static const char unknown[] = "unknown";
 
 namespace gptl_autoinst {
   // prototypes for functions in anonymous namespace
@@ -44,17 +47,18 @@ namespace gptl_autoinst {
     **
     ** Return value: pointer to the entry, or NULL if not found
     */
-    inline Timer *getentry_instr (const Hashentry *hashtable, void *self, unsigned int *indx)
+    inline gptl_private::Timer *getentry_instr (const gptl_private::Hashentry *hashtable,
+						void *self, unsigned int *indx)
     {
       using namespace gptl_private;
-      Timer *ptr = NULL;  // init to return value when entry not found
+      gptl_private::Timer *ptr = NULL;  // init to return value when entry not found
 
       /*
       ** Hash index is timer address modulo the table size
       ** On most machines, right-shifting the address helps because linkers often
       ** align functions on even boundaries
       */
-      *indx = (((unsigned long) self) >> 4) % tablesize;
+      *indx = (((unsigned long) self) >> 4) % gptl_private::tablesize;
       for (int i = 0; i < hashtable[*indx].nument; ++i) {
 	if (hashtable[*indx].entries[i]->address == self) {
 	  ptr = hashtable[*indx].entries[i];
@@ -67,15 +71,16 @@ namespace gptl_autoinst {
 #if ( defined HAVE_LIBUNWIND || defined HAVE_BACKTRACE )
     void __cyg_profile_func_enter (void *this_fn, void *call_site)
     {
-      using namespace gptl_once;
-      using namespace gptl_private;
-      using namespace gptl_util;
+      using gptl_private::update_parent_info;
+      using gptl_private::callstack;
+      using gptl_private::stackidx;
+      using gptl_private::update_ptr;
       int t;             // thread index
       int symsize;       // number of characters in symbol
       char *symnam = 0;  // symbol name whether using unwind or backtrace
       int numchars;      // number of characters in function name
       unsigned int indx; // hash table index
-      Timer *ptr;        // pointer to entry if it already exists
+      gptl_private::Timer *ptr;        // pointer to entry if it already exists
       int ret;
       static const char *thisfunc = "__cyg_profile_func_enter";
 
@@ -89,7 +94,7 @@ namespace gptl_autoinst {
       if (gptl_private::preamble_start (&t, unknown) != 0)
 	return;
 
-      ptr = getentry_instr (hashtable[t], this_fn, &indx);
+      ptr = getentry_instr (gptl_private::hashtable[t], this_fn, &indx);
 
       /* 
       ** Recursion => increment depth in recursion and return.  We need to return 
@@ -103,7 +108,7 @@ namespace gptl_autoinst {
 
       // Increment stackidx[t] unconditionally. This is necessary to ensure the correct
       // behavior when GPTLstop_instr decrements stackidx[t] unconditionally.
-      if (++stackidx[t].val > MAX_STACK-1) {
+      if (++gptl_private::stackidx[t].val > MAX_STACK-1) {
 	gptl_util::warn ("%s: stack too big\n", thisfunc);
 	return;
       }
@@ -113,10 +118,10 @@ namespace gptl_autoinst {
 	  printf ("%s: failed to find symbol for address %p\n", thisfunc, this_fn);
 	  return;
 	}
-	ptr = new Timer (symnam, this_fn);
+	ptr = new gptl_private::Timer (symnam, this_fn);
 	free (symnam);
       
-	if (update_ll_hash (ptr, t, indx) != 0) {
+	if (gptl_private::update_ll_hash (ptr, t, indx) != 0) {
 	  gptl_util::warn ("%s: update_ll_hash error\n", thisfunc);
 	  return;
 	}
@@ -132,8 +137,8 @@ namespace gptl_autoinst {
 	return;
       }
 
-      if (dopr_memusage && t == 0)
-	check_memusage ("Begin", ptr->name);
+      if (gptl_once::dopr_memusage && t == 0)
+	gptl_private::check_memusage ("Begin", ptr->name);
     }
 
     // Use anonymous namespace for functions private to the outer namespace
@@ -141,7 +146,6 @@ namespace gptl_autoinst {
 #ifdef HAVE_BACKTRACE
       int get_symnam (void *this_fn, char **symnam)
       {
-	using namespace gptl_util;
 	char **strings = 0;
 	void *buffer[3];
 	int nptrs;
@@ -150,12 +154,12 @@ namespace gptl_autoinst {
 
 	nptrs = backtrace (buffer, 3);
 	if (nptrs != 3) {
-	  warn ("%s backtrace failed nptrs should be 2 but is %d\n", thisfunc, nptrs);
+	  gptl_util::warn ("%s backtrace failed nptrs should be 2 but is %d\n", thisfunc, nptrs);
 	  return -1;
 	}
 
 	if ( ! (strings = backtrace_symbols (buffer, nptrs))) {
-	  warn ("%s backtrace_symbols failed strings is null\n", thisfunc);
+	  gptl_util::warn ("%s backtrace_symbols failed strings is null\n", thisfunc);
 	  return -1;
 	}
 
@@ -250,13 +254,10 @@ namespace gptl_autoinst {
 
       void __cyg_profile_func_exit (void *this_fn, void *call_site)
       {
-	using namespace gptl_once;
-	using namespace gptl_private;
-	using namespace gptl_util;
 	float rss;
 	int t;             // thread index
 	unsigned int indx; // hash table index
-	Timer *ptr;        // pointer to entry if it already exists
+	gptl_private::Timer *ptr;        // pointer to entry if it already exists
 	double tp1 = 0.0;  // time stamp */
 	long usr = 0;      // user time (returned from get_cpustamp)
 	long sys = 0;      // system time (returned from get_cpustamp)
@@ -265,15 +266,15 @@ namespace gptl_autoinst {
 	if (gptl_private::preamble_stop (&t, &tp1, &usr, &sys, thisfunc) != 0)
 	  return;
        
-	ptr = getentry_instr (hashtable[t], this_fn, &indx);
+	ptr = getentry_instr (gptl_private::hashtable[t], this_fn, &indx);
 
 	if ( ! ptr) {
-	  warn ("%s: timer for %p had not been started.\n", thisfunc, this_fn);
+	  gptl_util::warn ("%s: timer for %p had not been started.\n", thisfunc, this_fn);
 	  return;
 	}
 
 	if ( ! ptr->onflg ) {
-	  warn ("%s: timer %s was already off.\n", thisfunc, ptr->name);
+	  gptl_util::warn ("%s: timer %s was already off.\n", thisfunc, ptr->name);
 	  return;
 	}
 
@@ -295,8 +296,8 @@ namespace gptl_autoinst {
 	  return;
 	}
 
-	if (dopr_memusage && t == 0)
-	  check_memusage ("End", ptr->name);
+	if (gptl_once::dopr_memusage && t == 0)
+	  gptl_private::check_memusage ("End", ptr->name);
       }
 #endif // HAVE_LIBUNWIND || HAVE_BACKTRACE
       // auto-instrument function for xlc: -qdebug=function_trace
@@ -307,24 +308,19 @@ namespace gptl_autoinst {
       void __func_trace_enter (const char *function_name, const char *file_name, int line_number,
 			       void **const user_data)
       {
-	using namespace gptl_once;
-	using namespace gptl_private;
-	if (dopr_memusage && get_thread_num() == 0)
-	  check_memusage ("Begin", function_name);
+	if (gptl_once::dopr_memusage && gptl_thread::get_thread_num() == 0)
+	  gptl_private::check_memusage ("Begin", function_name);
 	(void) GPTLstart (function_name);
       }
   
       void __func_trace_exit (const char *function_name, const char *file_name, int line_number,
 			      void **const user_data)
       {
-	using namespace gptl_once;
-	using namespace gptl_private;
 	(void) GPTLstop (function_name);
-	if (dopr_memusage && get_thread_num() == 0)
-	  check_memusage ("End", function_name);
+	if (gptl_once::dopr_memusage && gptl_thread::get_thread_num() == 0)
+	  gptl_private::check_memusage ("End", function_name);
       }
 #endif
     }
   }
 }
-

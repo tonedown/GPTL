@@ -16,8 +16,32 @@
 #include <string.h>
 #include <unistd.h>    // sysconf
 
-// Local variables to the file
+// Local to the file
 static const int LEN = 4096;
+static float get_clockfreq (void);
+
+#ifdef HAVE_GETTIMEOFDAY
+static int init_gettimeofday (void);
+#endif
+
+#ifdef HAVE_NANOTIME
+int init_nanotime (void);
+#endif
+
+#ifdef HAVE_LIBMPI
+static int init_mpiwtime (void);
+#endif
+
+#ifdef HAVE_LIBRT
+static int init_clock_gettime (void);
+#endif
+
+#ifdef _AIX
+static int init_read_real_time (void);
+#endif
+
+static int init_placebo (void);
+static void set_abort_on_error (bool val);
 
 // Namespace declarations of data/functions to be used only by GPTL
 namespace gptl_once {
@@ -31,8 +55,7 @@ namespace gptl_once {
   bool dopr_memusage = false;         // whether to include memusage print when auto-profiling
   bool verbose = false;               // output verbosity
   long ticks_per_sec;                 // clock ticks per second
-  GPTL_Method method = GPTLmost_frequent;  // default parent/child printing mechanism
-  int depthlimit = 99999;             // max depth for timers (99999 is effectively infinite)
+  int depthlimit = 99999;             // limit of depth to go down call tree
   bool sync_mpi = false;              // auto-synchronize MPI calls when PMPI enabled
   bool onlypr_rank0 = false;          // flag says only print from MPI rank 0 (default false)
   time_t ref_gettimeofday = -1;       // ref start point for gettimeofday
@@ -40,161 +63,30 @@ namespace gptl_once {
   int funcidx = 0;                    // default timer is gettimeofday
 #ifdef HAVE_NANOTIME
   double cyc2sec = -1;                // convert cycles to seconds. init to bad value
-  char *clock_source = unknown;       // where clock found
+  char *clock_source = "unknown";     // where clock found
 #endif
 
-  extern "C" {
-    Funcentry funclist[] = {
+  Funcentry funclist[] = {
 #ifdef HAVE_GETTIMEOFDAY
-      {GPTLgettimeofday,   gptl_private::utr_gettimeofday,   init_gettimeofday,  "gettimeofday"},
+    {GPTLgettimeofday,   gptl_private::utr_gettimeofday,   init_gettimeofday,  "gettimeofday"},
 #endif
 #ifdef HAVE_NANOTIME
-      {GPTLnanotime,       gptl_private::utr_nanotime,       init_nanotime,      "nanotime"},
+    {GPTLnanotime,       gptl_private::utr_nanotime,       init_nanotime,      "nanotime"},
 #endif
 #ifdef HAVE_LIBMPI
-      {GPTLmpiwtime,       gptl_private::utr_mpiwtime,       init_mpiwtime,      "MPI_Wtime"},
+    {GPTLmpiwtime,       gptl_private::utr_mpiwtime,       init_mpiwtime,      "MPI_Wtime"},
 #endif
 #ifdef HAVE_LIBRT
-      {GPTLclockgettime,   gptl_private::utr_clock_gettime,  init_clock_gettime, "clock_gettime"},
+    {GPTLclockgettime,   gptl_private::utr_clock_gettime,  init_clock_gettime, "clock_gettime"},
 #endif
 #ifdef _AIX
-      {GPTLread_real_time, gptl_private::utr_read_real_time, init_read_real_time,"read_real_time"},
+    {GPTLread_real_time, gptl_private::utr_read_real_time, init_read_real_time,"read_real_time"},
 #endif
-      {GPTLplacebo,        gptl_private::utr_placebo,        init_placebo,       "placebo"}
-    };
-    const int nfuncentries = sizeof (funclist) / sizeof (Funcentry);
-    // The following are the set of initializers for underlying timing routines which may or may
-    // not be available. NANOTIME is only available on x86.
-#ifdef HAVE_NANOTIME
-    int init_nanotime ()
-    {
-      using namespace gptl_util;
-      static const char *thisfunc = "init_nanotime";
-      if ((cpumhz = get_clockfreq ()) < 0)
-	return error ("%s: Can't get clock freq\n", thisfunc);
-
-      if (verbose)
-	printf ("GPTL: %s: Clock rate = %f MHz\n", thisfunc, cpumhz);
-
-      cyc2sec = 1./(cpumhz * 1.e6);
-      return 0;
-    }
-#endif
-
-    namespace {
-      float get_clockfreq ()
-      {
-	FILE *fd = 0;
-	char buf[LEN];
-	int is;
-	float freq = -1.;             // clock frequency (MHz)
-	static const char *thisfunc = "get_clockfreq";
-	static const char *max_freq_fn = "/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq";
-	static const char *cpuinfo_fn = "/proc/cpuinfo";
-
-	// First look for max_freq, but that isn't guaranteed to exist
-	if ((fd = fopen (max_freq_fn, "r"))) {
-	  if (fgets (buf, LEN, fd)) {
-	    freq = 0.001 * (float) atof (buf);  // Convert from KHz to MHz
-	    if (verbose)
-	      printf ("GPTL: %s: Using max clock freq = %f for timing\n", thisfunc, freq);
-	  }
-	  clock_source = (char *) max_freq_fn;
-	  (void) fclose (fd);
-	  return freq;
-	}
-  
-	// Next try /proc/cpuinfo. That has the disadvantage that it may give wrong info
-	// for processors that have either idle or turbo mode
-#ifdef HAVE_SLASHPROC
-	if (verbose && freq < 0.)
-	  printf ("GPTL: %s: CAUTION: Can't find max clock freq. Trying %s instead\n",
-		  thisfunc, cpuinfo_fn);
-
-	if ( (fd = fopen (cpuinfo_fn, "r"))) {
-	  while (fgets (buf, LEN, fd)) {
-	    if (strncmp (buf, "cpu MHz", 7) == 0) {
-	      for (is = 7; buf[is] != '\0' && !isdigit (buf[is]); is++);
-	      if (isdigit (buf[is])) {
-		freq = (float) atof (&buf[is]);
-		if (verbose)
-		  printf ("GPTL: %s: Using clock freq from /proc/cpuinfo = %f for timing\n",
-			  thisfunc, freq);
-		clock_source = (char *) cpuinfo_fn;
-		break;
-	      }
-	    }
-	  }
-	  (void) fclose (fd);
-	}
-#endif
-	return freq;
-      }
-
-#ifdef HAVE_LIBMPI
-      int init_mpiwtime ()
-      {
-	return 0;
-      }
-#endif
-
-      // Probably need to link with -lrt for this one to work 
-#ifdef HAVE_LIBRT
-      int init_clock_gettime ()
-      {
-	static const char *thisfunc = "init_clock_gettime";
-	struct timespec tp;
-	(void) clock_gettime (CLOCK_REALTIME, &tp);
-	ref_clock_gettime = tp.tv_sec;
-	if (verbose)
-	  printf ("GPTL: %s: ref_clock_gettime=%ld\n", thisfunc, (long) ref_clock_gettime);
-	return 0;
-      }
-#endif
-
-      // High-res timer on AIX: read_real_time
-#ifdef _AIX
-      int init_read_real_time ()
-      {
-	static const char *thisfunc = "init_read_real_time";
-	timebasestruct_t ibmtime;
-	(void) read_real_time (&ibmtime, TIMEBASE_SZ);
-	(void) time_base_to_time (&ibmtime, TIMEBASE_SZ);
-	ref_read_real_time = ibmtime.tb_high;
-	if (verbose)
-	  printf ("GPTL: %s: ref_read_real_time=%ld\n", thisfunc, (long) ref_read_real_time);
-	return 0;
-      }
-#endif
-
-      // Default available most places: gettimeofday
-#ifdef HAVE_GETTIMEOFDAY
-      int init_gettimeofday ()
-      {
-	static const char *thisfunc = "init_gettimeofday";
-	struct timeval tp;
-	(void) gettimeofday (&tp, 0);
-	ref_gettimeofday = tp.tv_sec;
-	if (verbose)
-	  printf ("GPTL: %s: ref_gettimeofday=%ld\n", thisfunc, (long) ref_gettimeofday);
-	return 0;
-      }
-#endif
-
-      // placebo: does nothing and returns zero always. Useful for estimating overhead costs
-      int init_placebo ()
-      {
-	return 0;
-      }
-
-      // set_abort_on_error: Set abort_on_error flag
-      void set_abort_on_error (bool val)
-      {
-	using namespace gptl_util;
-	abort_on_error = val;
-      }
-    }
-  }
+    {GPTLplacebo,        gptl_private::utr_placebo,        init_placebo,       "placebo"}
+  };
+  const int nfuncentries = sizeof (funclist) / sizeof (Funcentry);
+  // The following are the set of initializers for underlying timing routines which may or may
+  // not be available. NANOTIME is only available on x86.
 }
 
 extern "C" {
@@ -209,13 +101,12 @@ extern "C" {
    */
   int GPTLsetoption (const int option, const int val)
   {
-    using namespace gptl_once;
-    using namespace gptl_util;
-    using namespace gptl_thread;
-    
+    using gptl_once::verbose;
+    using gptl_postprocess::method;
+    using gptl_postprocess::methodstr;
     static const char *thisfunc = "GPTLsetoption";
       
-    if (initialized)
+    if (gptl_once::initialized)
       return gptl_util::error ("%s: must be called BEFORE GPTLinitialize\n", thisfunc);
       
     if (option == GPTLabort_on_error) {
@@ -228,7 +119,7 @@ extern "C" {
     switch (option) {
     case GPTLcpu:
 #ifdef HAVE_TIMES
-      cpustats.enabled = (bool) val; 
+      gptl_private::cpustats.enabled = (bool) val; 
       if (verbose)
 	printf ("%s: cpustats = %d\n", thisfunc, val);
 #else
@@ -237,17 +128,17 @@ extern "C" {
 #endif
       return 0;
     case GPTLwall:     
-      wallstats.enabled = (bool) val; 
+      gptl_private::wallstats.enabled = (bool) val; 
       if (verbose)
 	printf ("%s: boolean wallstats = %d\n", thisfunc, val);
       return 0;
     case GPTLoverhead: 
-      overheadstats.enabled = (bool) val; 
+      gptl_private::overheadstats.enabled = (bool) val; 
       if (verbose)
 	printf ("%s: boolean overheadstats = %d\n", thisfunc, val);
       return 0;
     case GPTLdepthlimit: 
-      depthlimit = val; 
+      gptl_once::depthlimit = val; 
       if (verbose)
 	printf ("%s: depthlimit = %d\n", thisfunc, val);
       return 0;
@@ -260,32 +151,32 @@ extern "C" {
 	printf ("%s: boolean verbose = %d\n", thisfunc, val);
       return 0;
     case GPTLpercent: 
-      percent = (bool) val; 
+      gptl_once::percent = (bool) val; 
       if (verbose)
 	printf ("%s: boolean percent = %d\n", thisfunc, val);
       return 0;
     case GPTLdopr_preamble: 
-      dopr_preamble = (bool) val; 
+      gptl_once::dopr_preamble = (bool) val; 
       if (verbose)
 	printf ("%s: boolean dopr_preamble = %d\n", thisfunc, val);
       return 0;
     case GPTLdopr_threadsort: 
-      dopr_threadsort = (bool) val; 
+      gptl_once::dopr_threadsort = (bool) val; 
       if (verbose)
 	printf ("%s: boolean dopr_threadsort = %d\n", thisfunc, val);
       return 0;
     case GPTLdopr_multparent: 
-      dopr_multparent = (bool) val; 
+      gptl_once::dopr_multparent = (bool) val; 
       if (verbose)
 	printf ("%s: boolean dopr_multparent = %d\n", thisfunc, val);
       return 0;
     case GPTLdopr_collision: 
-      dopr_collision = (bool) val; 
+      gptl_once::dopr_collision = (bool) val; 
       if (verbose)
 	printf ("%s: boolean dopr_collision = %d\n", thisfunc, val);
       return 0;
     case GPTLdopr_memusage: 
-      dopr_memusage = (bool) val; 
+      gptl_once::dopr_memusage = (bool) val; 
       if (verbose)
 	printf ("%s: boolean dopr_memusage = %d\n", thisfunc, val);
       return 0;
@@ -297,14 +188,14 @@ extern "C" {
     case GPTLtablesize:
       if (val < 1)
 	return gptl_util::error ("%s: tablesize must be positive. %d is invalid\n", thisfunc, val);
-      tablesize = val;
-      tablesizem1 = val - 1;
+      gptl_private::tablesize = val;
+      gptl_private::tablesizem1 = val - 1;
       if (verbose)
-	printf ("%s: tablesize = %d\n", thisfunc, tablesize);
+	printf ("%s: tablesize = %d\n", thisfunc, gptl_private::tablesize);
       return 0;
     case GPTLsync_mpi:
 #ifdef ENABLE_PMPI
-      sync_mpi = (bool) val;
+      gptl_once::sync_mpi = (bool) val;
       if (verbose)
 	printf ("%s: boolean sync_mpi = %d\n", thisfunc, val);
 #else
@@ -313,12 +204,12 @@ extern "C" {
       return 0;
     case GPTLmaxthreads:
       if (val < 1)
-	return error ("%s: maxthreads must be positive. %d is invalid\n", thisfunc, val);
+	return gptl_util::error ("%s: maxthreads must be positive. %d is invalid\n", thisfunc, val);
 
-      maxthreads = val;
+      gptl_thread::maxthreads = val;
       return 0;
     case GPTLonlyprint_rank0:
-      onlypr_rank0 = (bool) val; 
+      gptl_once::onlypr_rank0 = (bool) val; 
       if (verbose)
 	printf ("%s: onlypr_rank0 = %d\n", thisfunc, val);
       return 0;
@@ -328,7 +219,6 @@ extern "C" {
     default:
       break;
     }
-
 #ifdef HAVE_PAPI
     if (gptl_papi::PAPIsetoption (option, val) == 0) {
       if (val)
@@ -336,7 +226,6 @@ extern "C" {
       return 0;
     }
 #endif
-
     return gptl_util::error ("%s: failure to enable option %d\n", thisfunc, option);
   }
 
@@ -350,32 +239,28 @@ extern "C" {
   */
   int GPTLsetutr (const int option)
   {
-    using namespace gptl_once;
-    using namespace gptl_util;
     int i;  // index over number of underlying timer
     static const char *thisfunc = "GPTLsetutr";
 
-    if (initialized)
-      return error ("%s: must be called BEFORE GPTLinitialize\n", thisfunc);
+    if (gptl_once::initialized)
+      return gptl_util::error ("%s: must be called BEFORE GPTLinitialize\n", thisfunc);
 
-    for (i = 0; i < nfuncentries; i++) {
-      if (option == (int) funclist[i].option) {
-	if (verbose)
-	  printf ("%s: underlying wallclock timer = %s\n", thisfunc, funclist[i].name);
-	funcidx = i;
+    for (i = 0; i < gptl_once::nfuncentries; i++) {
+      if (option == (int) gptl_once::funclist[i].option) {
+	if (gptl_once::verbose)
+	  printf ("%s: underlying wallclock timer = %s\n", thisfunc, gptl_once::funclist[i].name);
+	gptl_once::funcidx = i;
 
-	/*
-	** Return an error condition if the function is not available.
-	** OK for the user code to ignore: GPTLinitialize() will reset to gettimeofday
-	*/
-
-	if ((*funclist[i].funcinit)() < 0)
-	  return error ("%s: utr=%s not available or doesn't work\n", thisfunc, funclist[i].name);
+	// Return an error condition if the function is not available.
+	// OK for the user code to ignore: GPTLinitialize() will reset to gettimeofday
+	if ((*gptl_once::funclist[i].funcinit)() < 0)
+	  return gptl_util::error ("%s: utr=%s not available or doesn't work\n",
+				   thisfunc, gptl_once::funclist[i].name);
 	else
 	  return 0;
       }
     }
-    return error ("%s: unknown option %d\n", thisfunc, option);
+    return gptl_util::error ("%s: unknown option %d\n", thisfunc, option);
   }
 
   /*
@@ -388,26 +273,24 @@ extern "C" {
   */
   int GPTLinitialize (void)
   {
-    using namespace gptl_once;
-    using namespace gptl_util;
-    using namespace gptl_thread;
-    using namespace gptl_private;
-#ifdef HAVE_PAPI
-    using namespace gptl_papi;
-#endif
+    using gptl_thread::maxthreads;
+    using gptl_util::allocate;
+    using gptl_once::funclist;
+    using gptl_once::funcidx;
+    using namespace gptl_private;    // violate "using namespace" rule here
     int i;          // loop index
     int t;          // thread index
     double t1, t2;  // returned from underlying timer
     static const char *thisfunc = "GPTLinitialize";
 
-    if (initialized)
-      return error ("%s: has already been called\n", thisfunc);
+    if (gptl_once::initialized)
+      return gptl_util::error ("%s: has already been called\n", thisfunc);
 
-    if (threadinit () < 0)
-      return error ("%s: bad return from threadinit\n", thisfunc);
+    if (gptl_thread::threadinit () < 0)
+      return gptl_util::error ("%s: bad return from threadinit\n", thisfunc);
 
-    if ((ticks_per_sec = sysconf (_SC_CLK_TCK)) == -1)
-      return error ("%s: failure from sysconf (_SC_CLK_TCK)\n", thisfunc);
+    if ((gptl_once::ticks_per_sec = sysconf (_SC_CLK_TCK)) == -1)
+      return gptl_util::error ("%s: failure from sysconf (_SC_CLK_TCK)\n", thisfunc);
 
     // Allocate space for global arrays
     callstack       = (Timer ***)    allocate (maxthreads * sizeof (Timer **), thisfunc);
@@ -439,20 +322,20 @@ extern "C" {
     }
 
 #ifdef HAVE_PAPI
-    if (PAPIinitialize (maxthreads, verbose, &nevents, eventlist) < 0)
-      return error ("%s: Failure from PAPIinitialize\n", thisfunc);
+    if (gptl_papi::PAPIinitialize (maxthreads, verbose, &nevents, eventlist) < 0)
+      return gptl_util::error ("%s: Failure from PAPIinitialize\n", thisfunc);
 #endif
 
     // Call init routine for underlying timing routine
     if ((*funclist[funcidx].funcinit)() < 0) {
       fprintf (stderr, "%s: Failure initializing %s. Reverting underlying timer to %s\n", 
-	       thisfunc, funclist[funcidx].name, funclist[0].name);
+	       thisfunc, funclist[funcidx].name, gptl_once::funclist[0].name);
       funcidx = 0;
     }
 
     gptl_private::ptr2wtimefunc = funclist[funcidx].func;
 
-    if (verbose) {
+    if (gptl_once::verbose) {
       t1 = (*ptr2wtimefunc) ();
       t2 = (*ptr2wtimefunc) ();
       if (t1 > t2)
@@ -462,7 +345,7 @@ extern "C" {
     }
 
     imperfect_nest = false;
-    initialized = true;
+    gptl_once::initialized = true;
     return 0;
   }
 
@@ -480,11 +363,11 @@ extern "C" {
     using namespace gptl_thread;
     int t;                // thread index
     int n;                // array index
-    Timer *ptr, *ptrnext; // linked list indices
+    gptl_private::Timer *ptr, *ptrnext; // linked list indices
     static const char *thisfunc = "GPTLfinalize";
 
-    if ( ! initialized)
-      return error ("%s: initialization was not completed\n", thisfunc);
+    if ( ! gptl_once::initialized)
+      return gptl_util::error ("%s: initialization was not completed\n", thisfunc);
 
     for (t = 0; t < maxthreads; ++t) {
       for (n = 0; n < tablesize; ++n) {
@@ -494,7 +377,7 @@ extern "C" {
       free (hashtable[t]);
       hashtable[t] = NULL;
       free (callstack[t]);
-      for (ptr = timers[t]; ptr; ptr = ptrnext) {
+      for (ptr = gptl_private::timers[t]; ptr; ptr = ptrnext) {
 	ptrnext = ptr->next;
 	if (ptr->nparent > 0) {
 	  free (ptr->parent);
@@ -508,7 +391,7 @@ extern "C" {
 
     free (callstack);
     free (stackidx);
-    free (timers);
+    free (gptl_private::timers);
     free (last);
     free (hashtable);
 
@@ -520,9 +403,9 @@ extern "C" {
 #endif
 
     // Reset initial values
-    timers = 0;
+    gptl_private::timers = 0;
     last = 0;
-    nthreads = -1;
+    gptl_thread::nthreads = -1;
 #ifdef THREADED_PTHREADS
     maxthreads = MAX_THREADS;
 #else
@@ -530,7 +413,7 @@ extern "C" {
 #endif
     depthlimit = 99999;
     gptl_private::disabled = false;
-    initialized = false;
+    gptl_once::initialized = false;
     dousepapi = false;
     verbose = false;
     percent = false;
@@ -553,3 +436,120 @@ extern "C" {
     return 0;
   }
 }
+
+// Functions local to this file
+static float get_clockfreq ()
+{
+  FILE *fd = 0;
+  char buf[LEN];
+  int is;
+  float freq = -1.;             // clock frequency (MHz)
+  static const char *thisfunc = "get_clockfreq";
+  static const char *max_freq_fn = "/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq";
+  static const char *cpuinfo_fn = "/proc/cpuinfo";
+
+  // First look for max_freq, but that isn't guaranteed to exist
+  if ((fd = fopen (max_freq_fn, "r"))) {
+    if (fgets (buf, LEN, fd)) {
+      freq = 0.001 * (float) atof (buf);  // Convert from KHz to MHz
+      if (gptl_once::verbose)
+	printf ("GPTL: %s: Using max clock freq = %f for timing\n", thisfunc, freq);
+    }
+    gptl_once::clock_source = (char *) max_freq_fn;
+    (void) fclose (fd);
+    return freq;
+  }
+  
+  // Next try /proc/cpuinfo. That has the disadvantage that it may give wrong info
+  // for processors that have either idle or turbo mode
+#ifdef HAVE_SLASHPROC
+  if (gptl_once::verbose && freq < 0.)
+    printf ("GPTL: %s: CAUTION: Can't find max clock freq. Trying %s instead\n",
+	    thisfunc, cpuinfo_fn);
+  
+  if ( (fd = fopen (cpuinfo_fn, "r"))) {
+    while (fgets (buf, LEN, fd)) {
+      if (strncmp (buf, "cpu MHz", 7) == 0) {
+	for (is = 7; buf[is] != '\0' && !isdigit (buf[is]); is++);
+	if (isdigit (buf[is])) {
+	  freq = (float) atof (&buf[is]);
+	  if (gptl_once::verbose)
+	    printf ("GPTL: %s: Using clock freq from /proc/cpuinfo = %f for timing\n",
+		    thisfunc, freq);
+	  gptl_once::clock_source = (char *) cpuinfo_fn;
+	  break;
+	}
+      }
+    }
+    (void) fclose (fd);
+  }
+#endif
+  return freq;
+}
+
+#ifdef HAVE_LIBMPI
+static int init_mpiwtime () {return 0;}
+#endif
+
+// Probably need to link with -lrt for this one to work 
+#ifdef HAVE_LIBRT
+static int init_clock_gettime ()
+{
+  static const char *thisfunc = "init_clock_gettime";
+  struct timespec tp;
+  (void) clock_gettime (CLOCK_REALTIME, &tp);
+  gptl_once::ref_clock_gettime = tp.tv_sec;
+  if (gptl_once::verbose)
+    printf ("GPTL: %s: ref_clock_gettime=%ld\n", thisfunc, (long) gptl_once::ref_clock_gettime);
+  return 0;
+}
+#endif
+
+// High-res timer on AIX: read_real_time
+#ifdef _AIX
+static int init_read_real_time ()
+{
+  static const char *thisfunc = "init_read_real_time";
+  timebasestruct_t ibmtime;
+  (void) read_real_time (&ibmtime, TIMEBASE_SZ);
+  (void) time_base_to_time (&ibmtime, TIMEBASE_SZ);
+  gptl_once::ref_read_real_time = ibmtime.tb_high;
+  if (gptl_once::verbose)
+    printf ("GPTL: %s: ref_read_real_time=%ld\n", thisfunc, (long) gptl_once::ref_read_real_time);
+  return 0;
+}
+#endif
+
+// Default available most places: gettimeofday
+#ifdef HAVE_GETTIMEOFDAY
+static int init_gettimeofday ()
+{
+  static const char *thisfunc = "init_gettimeofday";
+  struct timeval tp;
+  (void) gettimeofday (&tp, 0);
+  gptl_once::ref_gettimeofday = tp.tv_sec;
+  if (gptl_once::verbose)
+    printf ("GPTL: %s: ref_gettimeofday=%ld\n", thisfunc, (long) gptl_once::ref_gettimeofday);
+  return 0;
+}
+#endif
+
+#ifdef HAVE_NANOTIME
+    int init_nanotime ()
+    {
+      static const char *thisfunc = "init_nanotime";
+      if ((gptl_once::cpumhz = get_clockfreq ()) < 0)
+	return gptl_util::error ("%s: Can't get clock freq\n", thisfunc);
+
+      if (gptl_once::verbose)
+	printf ("GPTL: %s: Clock rate = %f MHz\n", thisfunc, gptl_once::cpumhz);
+
+      gptl_once::cyc2sec = 1./(gptl_once::cpumhz * 1.e6);
+      return 0;
+    }
+#endif
+// placebo: does nothing and returns zero always. Useful for estimating overhead costs
+static int init_placebo () {return 0;}
+
+// set_abort_on_error: Set abort_on_error flag
+static void set_abort_on_error (bool val) {gptl_util::abort_on_error = val;}

@@ -30,18 +30,17 @@ namespace gptl_thread {
     */
     int threadinit ()
     {
-      using namespace gptl_util;
       int t;  // loop index
       static const char *thisfunc = "threadinit";
       
       if (omp_get_thread_num () != 0)
-	return error ("OMP %s: MUST only be called by the master thread\n", thisfunc);
+	return gptl_util::error ("OMP %s: MUST only be called by the master thread\n", thisfunc);
 
       // Allocate the threadid array which maps physical thread IDs to logical IDs 
       // For OpenMP this will be just threadid[iam] = iam;
       if (threadid) 
-	return error ("OMP %s: has already been called.\nMaybe mistakenly called by multiple threads?",
-		      thisfunc);
+	return gptl_util::error ("OMP %s: has already been called.\nMaybe mistakenly called by multiple threads?",
+				 thisfunc);
 
       // maxthreads may have been set by the user, in which case use that. But if as 
       // yet uninitialized, set to the current value of OMP_NUM_THREADS. 
@@ -82,7 +81,6 @@ namespace gptl_thread {
     */
     inline int get_thread_num ()
     {
-      using namespace gptl_util;
       int t;        // thread number
       static const char *thisfunc = "get_thread_num";
 
@@ -104,7 +102,8 @@ namespace gptl_thread {
 	  my_nthreads = omp_get_team_size (lvl);
 	  t           = parentid*my_nthreads + myid;
 	} else {
-	  return error ("OMP %s: GPTL supports only 2 nested OMP levels got %d\n", thisfunc, lvl);
+	  return gptl_util::error ("OMP %s: GPTL supports only 2 nested OMP levels got %d\n",
+				   thisfunc, lvl);
 	}
       } else {
 	// un-nested case: thread id is index
@@ -114,7 +113,8 @@ namespace gptl_thread {
       t = omp_get_thread_num ();
 #endif
       if (t >= maxthreads)
-	return error ("OMP %s: returned id=%d exceeds maxthreads=%d\n", thisfunc, t, maxthreads);
+	return gptl_util::error ("OMP %s: returned id=%d exceeds maxthreads=%d\n",
+				 thisfunc, t, maxthreads);
 
       // If our thread number has already been set in the list, we are done
       if (t == threadid[t])
@@ -138,7 +138,7 @@ namespace gptl_thread {
 #endif
 
 	if (gptl_papi::create_and_start_events (t) < 0)
-	  return error ("GPTL: OMP %s: error from GPTLcreate_and_start_events for thread %d\n", 
+	  return gptl_util::error ("GPTL: OMP %s: error from GPTLcreate_and_start_events for thread %d\n", 
 			thisfunc, t);
       }
 #endif
@@ -148,7 +148,6 @@ namespace gptl_thread {
 #ifdef VERBOSE
       printf ("GPTL: OMP %s: nthreads=%d\n", thisfunc, nthreads);
 #endif
-
       return t;
     }
 

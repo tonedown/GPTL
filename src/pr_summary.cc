@@ -1,4 +1,5 @@
 #include "config.h" // Must be first include
+#include "defines.h"
 #include "private.h"
 #include "util.h"
 #include "thread.h"
@@ -10,6 +11,13 @@
 #include <string.h>
 #include <math.h>          // sqrt
 
+// Private function prototypes
+extern "C" {
+  static void get_threadstats (int, char *, gptl_private::Timer **, Global *);
+  static gptl_private::Timer *getentry_slowway (gptl_private::Timer *, char *);
+}
+
+// Public entries
 extern "C" {
   /* 
   ** GPTLpr_summary_file: Gather and print MPI summary stats across threads and tasks.
@@ -23,8 +31,6 @@ extern "C" {
   */
   int GPTLpr_summary_file (MPI_Comm comm, const char *outfile)
   {
-    using namespace gptl_util;
-    using namespace gptl_thread;
     int ret;             // return code
     int iam;             // my rank
     int nranks;          // number of ranks in communicator
@@ -32,8 +38,8 @@ extern "C" {
     int nregions_p;      // number of regions for a single task
     int n, nn;           // region index
     int i;               // index
-    Timer *ptr;          // linked list pointer
-    Timer **timers;      // array of timers
+    gptl_private::Timer *ptr;          // linked list pointer
+    gptl_private::Timer **loctimers;      // array of timers
     int incr;            // increment for tree sum
     int twoincr;         // 2*incr
     int dosend;          // logical indicating whether to send this iteration
@@ -60,27 +66,27 @@ extern "C" {
 #endif
 
     if ( ! GPTLis_initialized ())
-      return error ("%s: GPTLinitialize() has not been called\n", thisfunc);
+      return gptl_util::error ("%s: GPTLinitialize() has not been called\n", thisfunc);
 
     if ((ret = MPI_Comm_rank (comm, &iam)) != MPI_SUCCESS)
-      return error ("%s: Bad return from MPI_Comm_rank=%d\n", thisfunc, ret);
+      return gptl_util::error ("%s: Bad return from MPI_Comm_rank=%d\n", thisfunc, ret);
 
     if ((ret = MPI_Comm_size (comm, &nranks)) != MPI_SUCCESS)
-      return error ("%s rank %d: Bad return from MPI_Comm_size=%d\n", thisfunc, iam, ret);
+      return gptl_util::error ("%s rank %d: Bad return from MPI_Comm_size=%d\n", thisfunc, iam, ret);
 
     // Examine only thread 0 regions that have not been renamed due to long name (only applies
     // to auto-profiled routines). The "longname" caveat is important because the naming truncation
     // algorithm may have named the SAME region differently for different ranks
-    timers = GPTLget_timersaddr ();
+    loctimers = GPTLget_timersaddr ();
     nregions = 0;
-    for (ptr = timers[0]->next; ptr; ptr = ptr->next)
+    for (ptr = loctimers[0]->next; ptr; ptr = ptr->next)
       if ( ! ptr->longname)
 	++nregions;
 
     if (nregions < 1)
-      GPTLwarn ("%s rank %d: nregions = 0\n", thisfunc, iam);
+      gptl_util::warn ("%s rank %d: nregions = 0\n", thisfunc, iam);
     else
-      global = (Global *) GPTLallocate (nregions * sizeof (Global), thisfunc);
+      global = (Global *) gptl_util::allocate (nregions * sizeof (Global), thisfunc);
 
     // Gather per-thread stats based on thread 0 list.
     // Also discover length of longest region name for formatting
@@ -88,9 +94,9 @@ extern "C" {
     mnl = 0;
     multithread = (gptl_thread::nthreads > 1);
 
-    for (ptr = timers[0]->next; ptr; ptr = ptr->next) {
+    for (ptr = loctimers[0]->next; ptr; ptr = ptr->next) {
       if ( ! ptr->longname) {
-	get_threadstats (iam, ptr->name, timers, &global[n]);
+	get_threadstats (iam, ptr->name, loctimers, &global[n]);
 	mnl = MAX (strlen (ptr->name), mnl);
 
 	// Initialize for calculating mean, st. dev.
@@ -126,14 +132,14 @@ extern "C" {
 	  printf ("%s: WARNING: iam=%d: dosend and dorecv both true: possible hang?\n", thisfunc, iam);
 
 	if ((ret = MPI_Send (&nregions, 1, MPI_INT, sendto, tag, comm)) != MPI_SUCCESS)
-	  return error ("%s rank %d: Bad return from MPI_Send=%d\n", thisfunc, iam, ret);
+	  return gptl_util::error ("%s rank %d: Bad return from MPI_Send=%d\n", thisfunc, iam, ret);
 	// if nregions=0, don't send other info because "global" wasn't even allocated
 	// Same logic MUST also be applied on the receiving end
 	if (nregions > 0) {
 	  if ((ret = MPI_Send (&multithread, 1, MPI_INT, sendto, tag, comm)) != MPI_SUCCESS)
-	    return error ("%s rank %d: Bad return from MPI_Send=%d\n", thisfunc, iam, ret);
+	    return gptl_util::error ("%s rank %d: Bad return from MPI_Send=%d\n", thisfunc, iam, ret);
 	  if ((ret = MPI_Send (global, nbytes*nregions, MPI_BYTE, sendto, tag, comm)) != MPI_SUCCESS)
-	    return error ("%s rank %d: Bad return from MPI_Send=%d\n", thisfunc, iam, ret);
+	    return gptl_util::error ("%s rank %d: Bad return from MPI_Send=%d\n", thisfunc, iam, ret);
 	}
       }
 
@@ -142,17 +148,17 @@ extern "C" {
 	  printf ("%s: WARNING: iam=%d: dosend and dorecv both true: possible hang?\n",
 		  thisfunc, iam);
 	if ((ret = MPI_Recv (&nregions_p, 1, MPI_INT, p, tag, comm, &status)) != MPI_SUCCESS)
-	  return error ("%s rank %d: Bad return from MPI_Recv=%d\n", thisfunc, iam, ret);
+	  return gptl_util::error ("%s rank %d: Bad return from MPI_Recv=%d\n", thisfunc, iam, ret);
 	if (nregions_p > 0) {
 	  if ((ret = MPI_Recv (&multithread_p, 1, MPI_INT, p, tag, comm, &status)) != MPI_SUCCESS)
-	    return error ("%s rank %d: Bad return from MPI_Recv=%d\n", thisfunc, iam, ret);
+	    return gptl_util::error ("%s rank %d: Bad return from MPI_Recv=%d\n", thisfunc, iam, ret);
 	  if (multithread_p)
 	    multithread = true;
 
-	  global_p = (Global *) GPTLallocate (nregions_p * sizeof (Global), thisfunc);
+	  global_p = (Global *) gptl_util::allocate (nregions_p * sizeof (Global), thisfunc);
 	  ret = MPI_Recv (global_p, nbytes*nregions_p, MPI_BYTE, p, tag, comm, &status);
 	  if (ret != MPI_SUCCESS)
-	    return error ("%s rank %d: Bad return from MPI_Recv=%d\n", thisfunc, iam, ret);
+	    return gptl_util::error ("%s rank %d: Bad return from MPI_Recv=%d\n", thisfunc, iam, ret);
 	}
       
 	// Merge stats for task p with our current stats. Note nregions_p and/or nregions may be 0
@@ -171,7 +177,7 @@ extern "C" {
 	    ++nregions;
 	    sptr = (Global *) realloc (global, nregions * sizeof (Global));
 	    if ( ! sptr)
-	      return error ("%s: realloc error", thisfunc);
+	      return gptl_util::error ("%s: realloc error", thisfunc);
 	    global = sptr;
 	    // IMPORTANT: structure copy only works because it contains NO pointers (only arrays)
 	    global[nn] = global_p[n];
@@ -231,7 +237,7 @@ extern "C" {
       }
 
       // Print a warning if error() was ever called
-      if (GPTLnum_errors () > 0) {
+      if (gptl_util::num_errors () > 0) {
 	fprintf (fp, "WARNING: gptl_util::error was called at least once during the run.\n");
 	fprintf (fp, "Please examine your output for error messages beginning with GPTL...\n");
       }
@@ -258,13 +264,13 @@ extern "C" {
       fprintf (fp, ")");
 
 #ifdef HAVE_PAPI
-      for (e = 0; e < GPTLnevents; ++e) {
-	fprintf (fp, " %8.8smax (rank  ", GPTLeventlist[e].str8);
+      for (e = 0; e < gptl_papi::nevents; ++e) {
+	fprintf (fp, " %8.8smax (rank  ", gptl_papi::eventlist[e].str8);
 	if (multithread)
 	  fprintf (fp, "thread");
 	fprintf (fp, ")");
 
-	fprintf (fp, " %8.8smin (rank  ", GPTLeventlist[e].str8);
+	fprintf (fp, " %8.8smin (rank  ", gptl_papi::eventlist[e].str8);
 	if (multithread)
 	  fprintf (fp, "thread");
 	fprintf (fp, ")");
@@ -356,89 +362,87 @@ extern "C" {
   }
 }
 
-// Put all local quantities in anonymous namespace
-namespace {
-  extern "C" {
-    /* 
-    ** get_threadstats: gather stats for timer "name" over all threads
-    **
-    ** Input arguments:
-    **   iam:    my rank
-    **   name:   timer name
-    **   timers: array of linked lists of timers
-    **
-    ** Output arguments:
-    **   global: max/min stats over all threads
-    */
-    void get_threadstats (int iam, char *name, Timer **timers, Global *global)
-    {
-      int t;                // thread index
-      Timer *ptr;
-      static const char *thisfunc = "get_threadstats";
-
-      // This memset fortuitiously initializes the process values to master (0)
-      memset (global, 0, sizeof (Global));
-      strcpy (global->name, name);
+// Functions local to this file
+extern "C" {
+  /* 
+  ** get_threadstats: gather stats for timer "name" over all threads
+  **
+  ** Input arguments:
+  **   iam:    my rank
+  **   name:   timer name
+  **   loctimers: array of linked lists of timers
+  **
+  ** Output arguments:
+  **   global: max/min stats over all threads
+  */
+  static void get_threadstats (int iam, char *name, gptl_private::Timer **loctimers, Global *global)
+  {
+    int t;                // thread index
+    gptl_private::Timer *ptr;
+    static const char *thisfunc = "get_threadstats";
     
-      for (t = 0; t < gptl_thread::nthreads; ++t) {
-	if ((ptr = getentry_slowway (timers[t]->next, name))) {
-	  // Won't print this entry if it was on for any rank or thread
-	  if (ptr->onflg)
-	    ++global->notstopped;
+    // This memset fortuitiously initializes the process values to master (0)
+    memset (global, 0, sizeof (Global));
+    strcpy (global->name, name);
+    
+    for (t = 0; t < gptl_thread::nthreads; ++t) {
+      if ((ptr = getentry_slowway (loctimers[t]->next, name))) {
+	// Won't print this entry if it was on for any rank or thread
+	if (ptr->onflg)
+	  ++global->notstopped;
 	
-	  global->totcalls += ptr->count;
-
-	  if (ptr->wall.accum > global->wallmax) {
-	    global->wallmax   = ptr->wall.accum;
-	    global->wallmax_p = iam;
-	    global->wallmax_t = t;
-	  }
-
-	  // global->wallmin = 0 for first thread
-	  if (ptr->wall.accum < global->wallmin || global->wallmin == 0.) {
-	    global->wallmin   = ptr->wall.accum;
-	    global->wallmin_p = iam;
-	    global->wallmin_t = t;
-	  }
+	global->totcalls += ptr->count;
+	
+	if (ptr->wall.accum > global->wallmax) {
+	  global->wallmax   = ptr->wall.accum;
+	  global->wallmax_p = iam;
+	  global->wallmax_t = t;
+	}
+	
+	// global->wallmin = 0 for first thread
+	if (ptr->wall.accum < global->wallmin || global->wallmin == 0.) {
+	  global->wallmin   = ptr->wall.accum;
+	  global->wallmin_p = iam;
+	  global->wallmin_t = t;
+	}
 #ifdef HAVE_PAPI
-	  int e;
-	  for (e = 0; e < GPTLnevents; ++e) {
-	    double value;
-	    if (GPTL_PAPIget_eventvalue (GPTLeventlist[e].namestr, &ptr->aux, &value) != 0) {
-	      fprintf (stderr, "GPTL: %s: Bad return from GPTL_PAPIget_eventvalue\n", thisfunc);
-	      return;
-	    }
-	    if (value > global->papimax[e]) {
-	      global->papimax[e]   = value;
-	      global->papimax_p[e] = iam;
-	      global->papimax_t[e] = t;
-	    }
-	  
-	    // First thread value in global is zero
-	    if (value < global->papimin[e] || global->papimin[e] == 0.) {
-	      global->papimin[e]   = value;
-	      global->papimin_p[e] = iam;
-	      global->papimin_t[e] = t;
-	    }
+	int e;
+	for (e = 0; e < GPTLnevents; ++e) {
+	  double value;
+	  if (GPTL_PAPIget_eventvalue (GPTLeventlist[e].namestr, &ptr->aux, &value) != 0) {
+	    fprintf (stderr, "GPTL: %s: Bad return from GPTL_PAPIget_eventvalue\n", thisfunc);
+	    return;
 	  }
+	  if (value > global->papimax[e]) {
+	    global->papimax[e]   = value;
+	    global->papimax_p[e] = iam;
+	    global->papimax_t[e] = t;
+	  }
+	  
+	  // First thread value in global is zero
+	  if (value < global->papimin[e] || global->papimin[e] == 0.) {
+	    global->papimin[e]   = value;
+	    global->papimin_p[e] = iam;
+	    global->papimin_t[e] = t;
+	  }
+	}
 #endif
-	}
       }
     }
+  }
 
-    // getentry_slowway: Find entry name in the table via linear search.
-    // Simpler this way since entries could be manual or auto-instrumented.
-    Timer *getentry_slowway (Timer *timer, char *name)
-    {
-      Timer *ptr = 0;
+  // getentry_slowway: Find entry name in the table via linear search.
+  // Simpler this way since entries could be manual or auto-instrumented.
+  static gptl_private::Timer *getentry_slowway (gptl_private::Timer *timer, char *name)
+  {
+    gptl_private::Timer *ptr = 0;
     
-      for (; timer; timer = timer->next) {
-	if (STRMATCH (name, timer->name)) {
-	  ptr = timer;
-	  break;
-	}
+    for (; timer; timer = timer->next) {
+      if (STRMATCH (name, timer->name)) {
+	ptr = timer;
+	break;
       }
-      return ptr;
     }
+    return ptr;
   }
 }

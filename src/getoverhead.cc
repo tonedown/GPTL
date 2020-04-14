@@ -253,7 +253,7 @@ namespace gptl_overhead {
       static Timer *ptr = 0;
       static const char *thisfunc = "misc_sim";
       
-      if (gptl_once::disabled)
+      if (gptl_private::disabled)
 	printf ("GPTL: %s: should never print disabled\n", thisfunc);
 
       if (! gptl_once::initialized)

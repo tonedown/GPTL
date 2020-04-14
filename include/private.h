@@ -2,44 +2,13 @@
 #define PRIVATE_H
 
 #include "config.h"
-#include "gptl.h"  // GPTL_Option
+#include "defines.h" // MAX_AUX
+#include "gptl.h"    // GPTL_Option
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 // Things visible only to GPTL namespaces and functions
-
-#ifndef MIN
-#define MIN(X,Y) ((X) < (Y) ? (X) : (Y))
-#endif
-
-#ifndef MAX
-#define MAX(X,Y) ((X) > (Y) ? (X) : (Y))
-#endif
-
-#define STRMATCH(X,Y) (strcmp((X),(Y)) == 0)
-
-// Default size of hash table
-#define DEFAULT_TABLE_SIZE 1023
-
-// Output counts less than PRTHRESH will be printed as integers
-#define PRTHRESH 1000000L
-
-// Maximum allowed callstack depth
-#define MAX_STACK 128
-
-// longest timer name allowed (probably safe to just change)
-#define MAX_CHARS 63
-
-// Longest allowed symbol name for libunwind
-#define MAX_SYMBOL_NAME 255
-
-/* 
-** max allowable number of PAPI counters, or derived events. For convenience,
-** set to max (# derived events, # papi counters required) so "avail" lists
-** all available options.
-*/
-#define MAX_AUX 9
 
 namespace gptl_private {
   typedef struct {
@@ -94,7 +63,6 @@ namespace gptl_private {
     char *longname;           // For autoprofiled names, full name for diagnostic printing
     Timer (const char *, void *);
   };
-
   
   typedef struct {
     Timer **entries;             // array of timers hashed to the same value
@@ -108,7 +76,6 @@ namespace gptl_private {
   
   extern bool disabled;
   extern bool dousepapi;
-  extern char unknown[];
   extern Timer **timers;
   extern Timer **last;
   extern Settings cpustats;

@@ -17,7 +17,7 @@ AC_CANONICAL_TARGET
 # Initialize automake.
 AM_INIT_AUTOMAKE([foreign subdir-objects])
 
-# Set the compiler to C++
+# Set the language as C++
 AC_LANG(C++)
 
 # Find the C++ compiler.

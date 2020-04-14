@@ -4,9 +4,9 @@
 #include "private.h"
 
 namespace gptl_autoinst {
-  using namespace gptl_private;
   extern "C" {
-    inline Timer *getentry_instr (const Hashentry *, void *, unsigned int *);
+    inline gptl_private::Timer *getentry_instr (const gptl_private::Hashentry *, void *,
+						unsigned int *);
   }
 };
 #endif

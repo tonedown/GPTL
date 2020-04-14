@@ -1,4 +1,5 @@
 #include "config.h" // Must be first include.
+#include "defines.h"
 #include "util.h"
 #include "once.h"
 #include "thread.h"
@@ -25,23 +26,21 @@ extern "C" {
   */
   int GPTLstamp (double *wall, double *usr, double *sys)
   {
-    using namespace gptl_once;
-    using namespace gptl_util;
-    using namespace gptl_private;
+    using gptl_private::ptr2wtimefunc;
     struct tms buf;   // argument to times
 
     if ( ! gptl_once::initialized)
-      return error ("GPTLstamp: GPTLinitialize has not been called\n");
+      return gptl_util::error ("GPTLstamp: GPTLinitialize has not been called\n");
 
 #ifdef HAVE_TIMES
     *usr = 0;
     *sys = 0;
 
     if (times (&buf) == -1)
-      return error ("GPTLstamp: times() failed. Results bogus\n");
+      return gptl_util::error ("GPTLstamp: times() failed. Results bogus\n");
 
-    *usr = buf.tms_utime / (double) ticks_per_sec;
-    *sys = buf.tms_stime / (double) ticks_per_sec;
+    *usr = buf.tms_utime / (double) gptl_once::ticks_per_sec;
+    *sys = buf.tms_stime / (double) gptl_once::ticks_per_sec;
 #endif
     *wall = (*ptr2wtimefunc) ();
     return 0;
@@ -70,28 +69,27 @@ extern "C" {
   {
     using namespace gptl_once;
     using namespace gptl_util;
-    using namespace gptl_thread;
-    using namespace gptl_private;
-    Timer *ptr;                /* linked list pointer */
-    unsigned int indx;         /* linked list index returned from getentry (unused) */
+    gptl_private::Timer *ptr;  // linked list pointer
+    unsigned int indx;         // linked list index returned from getentry (unused)
     static const char *thisfunc = "GPTLquery";
   
     if ( ! gptl_once::initialized)
-      return error ("%s: GPTLinitialize has not been called\n", thisfunc);
+      return gptl_util::error ("%s: GPTLinitialize has not been called\n", thisfunc);
   
     // If t is < 0, assume the request is for the current thread
     if (t < 0) {
       if ((t = gptl_thread::get_thread_num ()) < 0)
-	return error ("%s: get_thread_num failure\n", thisfunc);
+	return gptl_util::error ("%s: get_thread_num failure\n", thisfunc);
     } else {
       if (t >= gptl_thread::maxthreads)
-	return error ("%s: requested thread %d is too big\n", thisfunc, t);
+	return gptl_util::error ("%s: requested thread %d is too big\n", thisfunc, t);
     }
 
     indx = gptl_private::genhashidx (name);
     ptr = getentry (gptl_private::hashtable[t], name, indx);
     if ( ! ptr)
-      return error ("%s: requested timer %s does not have a name hash\n", thisfunc, name);
+      return gptl_util::error ("%s: requested timer %s does not have a name hash\n",
+			       thisfunc, name);
 
     *onflg     = ptr->onflg;
     *count     = ptr->count;
@@ -116,34 +114,30 @@ extern "C" {
   */
   int GPTLget_wallclock (const char *timername, int t, double *value)
   {
-    using namespace gptl_once;
-    using namespace gptl_util;
-    using namespace gptl_thread;
-    using namespace gptl_private;
-    Timer *ptr;          // linked list pointer
+    gptl_private::Timer *ptr;          // linked list pointer
     unsigned int indx;   // hash index returned from getentry (unused)
     static const char *thisfunc = "GPTLget_wallclock";
   
-    if ( ! initialized)
-      return error ("%s: GPTLinitialize has not been called\n", thisfunc);
+    if ( ! gptl_once::initialized)
+      return gptl_util::error ("%s: GPTLinitialize has not been called\n", thisfunc);
 
-    if ( ! wallstats.enabled)
-      return error ("%s: wallstats not enabled\n", thisfunc);
+    if ( ! gptl_private::wallstats.enabled)
+      return gptl_util::error ("%s: wallstats not enabled\n", thisfunc);
   
     // If t is < 0, assume the request is for the current thread
     if (t < 0) {
       if ((t = gptl_thread::get_thread_num ()) < 0)
-	return error ("%s: bad return from get_thread_num\n", thisfunc);
+	return gptl_util::error ("%s: bad return from get_thread_num\n", thisfunc);
     } else {
-      if (t >= maxthreads)
-	return error ("%s: requested thread %d is too big\n", thisfunc, t);
+      if (t >= gptl_thread::maxthreads)
+	return gptl_util::error ("%s: requested thread %d is too big\n", thisfunc, t);
     }
   
-    indx = genhashidx (timername);
-    ptr = getentry (hashtable[t], timername, indx);
+    indx = gptl_private::genhashidx (timername);
+    ptr = gptl_private::getentry (gptl_private::hashtable[t], timername, indx);
     if ( ! ptr)
-      return error ("%s: requested timer %s does not exist (or auto-instrumented?)\n",
-		    thisfunc, timername);
+      return gptl_util::error ("%s: requested timer %s does not exist (or auto-instrumented?)\n",
+			       thisfunc, timername);
     *value = ptr->wall.accum;
     return 0;
   }
@@ -160,34 +154,29 @@ extern "C" {
   */
   int GPTLget_wallclock_latest (const char *timername, int t, double *value)
   {
-    using namespace gptl_once;
-    using namespace gptl_private;
-    using namespace gptl_thread;
-    using namespace gptl_util;
-    
-    Timer *ptr;          // linked list pointer
+    gptl_private::Timer *ptr;          // linked list pointer
     unsigned int indx;   // hash index returned from getentry (unused)
     static const char *thisfunc = "GPTLget_wallclock_latest";
   
-    if ( ! initialized)
-      return error ("%s: GPTLinitialize has not been called\n", thisfunc);
+    if ( ! gptl_once::initialized)
+      return gptl_util::error ("%s: GPTLinitialize has not been called\n", thisfunc);
 
-    if ( ! wallstats.enabled)
-      return error ("%s: wallstats not enabled\n", thisfunc);
+    if ( ! gptl_private::wallstats.enabled)
+      return gptl_util::error ("%s: wallstats not enabled\n", thisfunc);
   
     // If t is < 0, assume the request is for the current thread
     if (t < 0) {
       if ((t = gptl_thread::get_thread_num ()) < 0)
-	return error ("%s: bad return from get_thread_num\n", thisfunc);
+	return gptl_util::error ("%s: bad return from get_thread_num\n", thisfunc);
     } else {
-      if (t >= maxthreads)
-	return error ("%s: requested thread %d is too big\n", thisfunc, t);
+      if (t >= gptl_thread::maxthreads)
+	return gptl_util::error ("%s: requested thread %d is too big\n", thisfunc, t);
     }
   
-    indx = genhashidx (timername);
-    ptr = getentry (gptl_private::hashtable[t], timername, indx);
+    indx = gptl_private::genhashidx (timername);
+    ptr = gptl_private::getentry (gptl_private::hashtable[t], timername, indx);
     if ( ! ptr)
-      return error ("%s: requested timer %s does not exist\n", thisfunc, timername);
+      return gptl_util::error ("%s: requested timer %s does not exist\n", thisfunc, timername);
     *value = ptr->wall.latest;
     return 0;
   }
@@ -206,11 +195,7 @@ extern "C" {
   */
   int GPTLget_threadwork (const char *name, double *maxwork, double *imbal)
   {
-    using namespace gptl_once;
-    using namespace gptl_util;
-    using namespace gptl_thread;
-    using namespace gptl_private;
-    Timer *ptr;                  // linked list pointer
+    gptl_private::Timer *ptr;                  // linked list pointer
     int t;                       // thread number for this process
     int nfound = 0;              // number of threads which did work (must be > 0
     unsigned int indx;           // index into hash table
@@ -219,21 +204,21 @@ extern "C" {
     double balancedwork;         // time if work were perfectly load balanced
     static const char *thisfunc = "GPTLget_threadwork";
 
-    if (disabled)
+    if (gptl_private::disabled)
       return 0;
 
-    if ( ! initialized)
-      return error ("%s: GPTLinitialize has not been called\n", thisfunc);
+    if ( ! gptl_once::initialized)
+      return gptl_util::error ("%s: GPTLinitialize has not been called\n", thisfunc);
 
-    if ( ! wallstats.enabled)
-      return error ("%s: wallstats must be enabled to call this function\n", thisfunc);
+    if ( ! gptl_private::wallstats.enabled)
+      return gptl_util::error ("%s: wallstats must be enabled to call this function\n", thisfunc);
 
     if (gptl_thread::get_thread_num () != 0)
-      return error ("%s: Must be called by the master thread\n", thisfunc);
+      return gptl_util::error ("%s: Must be called by the master thread\n", thisfunc);
 
-    indx = genhashidx (name);
-    for (t = 0; t < nthreads; ++t) {
-      ptr = getentry (hashtable[t], name, indx);
+    indx = gptl_private::genhashidx (name);
+    for (t = 0; t < gptl_thread::nthreads; ++t) {
+      ptr = gptl_private::getentry (gptl_private::hashtable[t], name, indx);
       if (ptr) {
 	++nfound;
 	innermax = MAX (innermax, ptr->wall.accum);
@@ -243,16 +228,13 @@ extern "C" {
 
     // It's an error to call this routine for a region that does not exist
     if (nfound == 0)
-      return error ("%s: No entries exist for name=%s\n", thisfunc, name);
+      return gptl_util::error ("%s: No entries exist for name=%s\n", thisfunc, name);
 
-    /*
-    ** A perfectly load-balanced calculation would take time=totalwork/nthreads
-    ** Therefore imbalance is slowest thread time minus this number
-    */
-    balancedwork = totalwork / nthreads;
+    // A perfectly load-balanced calculation would take time=totalwork/nthreads
+    // Therefore imbalance is slowest thread time minus this number
+    balancedwork = totalwork / gptl_thread::nthreads;
     *maxwork = innermax;
     *imbal = innermax - balancedwork;
-
     return 0;
   }
 
@@ -268,30 +250,26 @@ extern "C" {
   */
   int GPTLget_count (const char *timername, int t, int *count)
   {
-    using namespace gptl_thread;
-    using namespace gptl_util;
-    using namespace gptl_private;
-    using namespace gptl_once;
-    Timer *ptr;          // linked list pointer
+    gptl_private::Timer *ptr;          // linked list pointer
     unsigned int indx;   // hash index returned from getentry (unused)
     static const char *thisfunc = "GPTLget_count";
   
-    if ( ! initialized)
-      return error ("%s: GPTLinitialize has not been called\n", thisfunc);
+    if ( ! gptl_once::initialized)
+      return gptl_util::error ("%s: GPTLinitialize has not been called\n", thisfunc);
 
     // If t is < 0, assume the request is for the current thread
     if (t < 0) {
       if ((t = gptl_thread::get_thread_num ()) < 0)
-	return error ("%s: bad return from get_thread_num\n", thisfunc);
+	return gptl_util::error ("%s: bad return from get_thread_num\n", thisfunc);
     } else {
-      if (t >= maxthreads)
-	return error ("%s: requested thread %d is too big\n", thisfunc, t);
+      if (t >= gptl_thread::maxthreads)
+	return gptl_util::error ("%s: requested thread %d is too big\n", thisfunc, t);
     }
   
-    indx = genhashidx (timername);
-    ptr = getentry (hashtable[t], timername, indx);
+    indx = gptl_private::genhashidx (timername);
+    ptr = gptl_private::getentry (gptl_private::hashtable[t], timername, indx);
     if ( ! ptr)
-      return error ("%s: requested timer %s does not exist (or auto-instrumented?)\n",
+      return gptl_util::error ("%s: requested timer %s does not exist (or auto-instrumented?)\n",
 			       thisfunc, timername);
     *count = ptr->count;
     return 0;
@@ -311,36 +289,32 @@ extern "C" {
   */
   int GPTLget_eventvalue (const char *timername, const char *eventname, int t, double *value)
   {
-    using namespace gptl_once;
-    using namespace gptl_thread;
-    using namespace gptl_util;
-    using namespace gptl_private;
-    Timer *ptr;          // linked list pointer
+    gptl_private::Timer *ptr;          // linked list pointer
     unsigned int indx;   // hash index returned from getentry (unused)
     static const char *thisfunc = "GPTLget_eventvalue";
   
-    if ( ! initialized)
-      return error ("%s: GPTLinitialize has not been called\n", thisfunc);
+    if ( ! gptl_once::initialized)
+      return gptl_util::error ("%s: GPTLinitialize has not been called\n", thisfunc);
   
     // If t is < 0, assume the request is for the current thread
     if (t < 0) {
       if ((t = gptl_thread::get_thread_num ()) < 0)
-	return error ("%s: get_thread_num failure\n", thisfunc);
+	return gptl_util::error ("%s: get_thread_num failure\n", thisfunc);
     } else {
-      if (t >= maxthreads)
-	return error ("%s: requested thread %d is too big\n", thisfunc, t);
+      if (t >= gptl_thread::maxthreads)
+	return gptl_util::error ("%s: requested thread %d is too big\n", thisfunc, t);
     }
   
-    indx = genhashidx (timername);
-    ptr = getentry (hashtable[t], timername, indx);
+    indx = gptl_private::genhashidx (timername);
+    ptr = gptl_private::getentry (gptl_private::hashtable[t], timername, indx);
     if ( ! ptr)
-      return error ("%s: requested timer %s does not exist (or auto-instrumented?)\n",
-		    thisfunc, timername);
+      return gptl_util::error ("%s: requested timer %s does not exist (or auto-instrumented?)\n",
+			       thisfunc, timername);
 
 #ifdef HAVE_PAPI
     return gptl_papi::PAPIget_eventvalue (eventname, &ptr->aux, value);
 #else
-    return error ("%s: PAPI not enabled\n", thisfunc); 
+    return gptl_util::error ("%s: PAPI not enabled\n", thisfunc); 
 #endif
   }
 
@@ -355,27 +329,23 @@ extern "C" {
   */
   int GPTLget_nregions (int t, int *nregions)
   {
-    using namespace gptl_util;
-    using namespace gptl_thread;
-    using namespace gptl_private;
-    using namespace gptl_once;
-    Timer *ptr;     // walk through linked list
+    gptl_private::Timer *ptr;     // walk through linked list
     const char *thisfunc = "GPTLget_nregions";
 
-    if ( ! initialized)
-      return error ("%s: GPTLinitialize has not been called\n", thisfunc);
+    if ( ! gptl_once::initialized)
+      return gptl_util::error ("%s: GPTLinitialize has not been called\n", thisfunc);
   
     // If t is < 0, assume the request is for the current thread
     if (t < 0) {
       if ((t = gptl_thread::get_thread_num ()) < 0)
-	return error ("%s: get_thread_num failure\n", thisfunc);
+	return gptl_util::error ("%s: get_thread_num failure\n", thisfunc);
     } else {
-      if (t >= maxthreads)
-	return error ("%s: requested thread %d is too big\n", thisfunc, t);
+      if (t >= gptl_thread::maxthreads)
+	return gptl_util::error ("%s: requested thread %d is too big\n", thisfunc, t);
     }
   
     *nregions = 0;
-    for (ptr = timers[t]->next; ptr; ptr = ptr->next) 
+    for (ptr = gptl_private::timers[t]->next; ptr; ptr = ptr->next) 
       ++*nregions;
 
     return 0;
@@ -394,31 +364,27 @@ extern "C" {
   */
   int GPTLget_regionname (int t, int region, char *name, int nc)
   {
-    using namespace gptl_once;
-    using namespace gptl_private;
-    using namespace gptl_util;
-    using namespace gptl_thread;
     int ncpy;    // number of characters to copy
     int i;       // index
-    Timer *ptr;  // walk through linked list
+    gptl_private::Timer *ptr;  // walk through linked list
     static const char *thisfunc = "GPTLget_regionname";
 
-    if ( ! initialized)
-      return error ("%s: GPTLinitialize has not been called\n", thisfunc);
+    if ( ! gptl_once::initialized)
+      return gptl_util::error ("%s: GPTLinitialize has not been called\n", thisfunc);
   
     // If t is < 0, assume the request is for the current thread
     if (t < 0) {
       if ((t = gptl_thread::get_thread_num ()) < 0)
-	return error ("%s: get_thread_num failure\n", thisfunc);
+	return gptl_util::error ("%s: get_thread_num failure\n", thisfunc);
     } else {
-      if (t >= maxthreads)
-	return error ("%s: requested thread %d is too big\n", thisfunc, t);
+      if (t >= gptl_thread::maxthreads)
+	return gptl_util::error ("%s: requested thread %d is too big\n", thisfunc, t);
     }
   
-    ptr = timers[t]->next;
+    ptr = gptl_private::timers[t]->next;
     for (i = 0; i < region; i++) {
       if ( ! ptr)
-	return error ("%s: timer number %d does not exist in thread %d\n", thisfunc, region, t);
+	return gptl_util::error ("%s: timer number %d does not exist in thread %d\n", thisfunc, region, t);
       ptr = ptr->next;
     }
 
@@ -430,28 +396,25 @@ extern "C" {
       if (ncpy < nc)
 	name[ncpy] = '\0';
     } else {
-      return error ("%s: timer number %d does not exist in thread %d\n", thisfunc, region, t);
+      return gptl_util::error ("%s: timer number %d does not exist in thread %d\n", thisfunc, region, t);
     }
     return 0;
   }
 
   int GPTLis_initialized (void)
   {
-    using namespace gptl_once;
-    return (int) initialized;
+    return (int) gptl_once::initialized;
   }
 
   // GPTLnum_errors: returns number of times GPTLerror() called
   int GPTLnum_errors (void)
   {
-    using namespace gptl_util;
-    return num_errors;
+    return gptl_util::num_errors;
   }
 
   // GPTLnum_warn: returns number of times GPTLwarn() called
   int GPTLnum_warn (void)
   {
-    using namespace gptl_util;
-    return num_warn;
+    return gptl_util::num_warn;
   }
 }

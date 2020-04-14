@@ -33,9 +33,9 @@ typedef enum {
 			       most frequent, or full tree (most frequent) */
   GPTLtablesize       = 50, /* per-thread size of hash table */
   GPTLmaxthreads      = 51, /* maximum number of threads */
-  GPTLonlyprint_rank0 = 52, // Restrict printout to rank 0 when MPI enabled
+  GPTLonlyprint_rank0 = 52, /* Restrict printout to rank 0 when MPI enabled */
 
-  // These are derived counters based on PAPI counters. All default to false
+  /* These are derived counters based on PAPI counters. All default to false */
   GPTL_IPC           = 17, /* Instructions per cycle */
   GPTL_LSTPI         = 21, /* Load-store instruction fraction */
   GPTL_DCMRT         = 22, /* L1 miss rate (fraction) */
@@ -66,18 +66,18 @@ typedef enum {
   GPTLfull_tree     = 4   /* complete call tree */
 } GPTL_Method;
 
-// All User-callable function prototypes except for MPI (see gptlmpi.h)
-// They require C linkage
+/* All User-callable function prototypes except for MPI (see gptlmpi.h) */
+/* They require C linkage */
 #ifdef __cplusplus
 extern "C" {
 #endif
-  // In once.cc:
+  /* In once.cc: */
   extern int GPTLsetoption (const int, const int);
   extern int GPTLsetutr (const int option);
   extern int GPTLinitialize (void);
   extern int GPTLfinalize (void);
 
-  // In gptl.cc:
+  /* In gptl.cc: */
   extern int GPTLinit_handle (const char *, int *);
   extern int GPTLstart (const char *);
   extern int GPTLstart_handle (const char *, int *);
@@ -85,7 +85,7 @@ extern "C" {
   extern int GPTLstop_handle (const char *, int *);
   extern int GPTLstartstop_val (const char *, double);
 
-  // In getter.cc:
+  /* In getter.cc: */
   extern int GPTLstamp (double *, double *, double *);
   extern int GPTLquery (const char *, int, int *, int *, double *, double *, double *, long long *,
 		 const int);
@@ -99,11 +99,11 @@ extern "C" {
   extern int GPTLnum_errors (void);
   extern int GPTLnum_warn (void);
 
-  // In postprocess.cc:
+  /* In postprocess.cc: */
   extern int GPTLpr (const int);
   extern int GPTLpr_file (const char *);
   
-  // In setter.cc:
+  /* In setter.cc: */
   extern int GPTLsetutr (const int);
   extern int GPTLreset (void);
   extern int GPTLreset_errors (void);
@@ -111,13 +111,13 @@ extern "C" {
   extern int GPTLdisable (void);
   extern int GPTLenable (void);
 
-  // In memusage.cc:
+  /* In memusage.cc: */
   extern int GPTLget_procsiz (float *, float *);
   extern int GPTLprint_memusage (const char *);
   extern int GPTLprint_rusage (const char *);
   extern int GPTLget_memusage (float *);
 
-  // In gptl_papi.cc:
+  /* In gptl_papi.cc: */
   extern int GPTL_PAPIlibraryinit (void);
   extern int GPTLevent_name_to_code (const char *, int *);
   extern int GPTLevent_code_to_name (const int, char *);

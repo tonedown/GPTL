@@ -4,6 +4,7 @@
  */
 
 #include "config.h" // Must be first include.
+#include "defines.h"
 #include "private.h"
 #include "gptl.h"
 #include "once.h"
@@ -27,6 +28,13 @@
 
 #define DONE 1
 
+// Private function prototypes
+extern "C" {
+  static inline int get_cpustamp (long *, long *);
+  static inline void set_fp_procsiz (void);
+  static void print_callstack (int, const char *);
+}
+
 extern "C" {
   //*************************************************************************************
   // User-visible functions: need to be outside namespace for callability from C, Fortran
@@ -42,10 +50,10 @@ extern "C" {
   */
   int GPTLstart (const char *name)
   {
-    using namespace gptl_once;
-    using namespace gptl_private;
-    using namespace gptl_util;
-    Timer *ptr;        // linked list entry
+    using gptl_private::callstack;
+    using gptl_private::stackidx;
+
+    gptl_private::Timer *ptr;        // linked list entry
     int t;             // thread index (of this thread)
     int ret;           // return value
     int numchars;      // number of characters to copy
@@ -59,8 +67,8 @@ extern "C" {
       return ret;
   
     // ptr will point to the requested timer in the current list, or NULL if this is a new entry
-    indx = genhashidx (name);
-    ptr = getentry (hashtable[t], name, indx);
+    indx = gptl_private::genhashidx (name);
+    ptr = gptl_private::getentry (gptl_private::hashtable[t], name, indx);
 
     /* 
     ** Recursion => increment depth in recursion and return.  We need to return 
@@ -74,23 +82,23 @@ extern "C" {
 
     // Increment stackidx[t] unconditionally. This is necessary to ensure the correct
     // behavior when GPTLstop decrements stackidx[t] unconditionally.
-    if (stackidx[t].val++ > MAX_STACK-1)
-      return error ("%s: stack too big: NOT starting timer for %s\n", thisfunc, name);
+    if (gptl_private::stackidx[t].val++ > MAX_STACK-1)
+      return gptl_util::error ("%s: stack too big: NOT starting timer for %s\n", thisfunc, name);
 
     if ( ! ptr) {   // New entry. Pass NULL for longname when not auto-instrumented
-      ptr = new Timer (name, NULL);
-      if (update_ll_hash (ptr, t, indx) != 0)
-	return error ("%s: update_ll_hash error\n", thisfunc);
+      ptr = new gptl_private::Timer (name, NULL);
+      if (gptl_private::update_ll_hash (ptr, t, indx) != 0)
+	return gptl_util::error ("%s: update_ll_hash error\n", thisfunc);
     }
 
-    if (update_parent_info (ptr, callstack[t], stackidx[t].val) != 0)
-      return error ("%s: update_parent_info error\n", thisfunc);
+    if (gptl_private::update_parent_info (ptr, callstack[t], stackidx[t].val) != 0)
+      return gptl_util::error ("%s: update_parent_info error\n", thisfunc);
 
-    if (update_ptr (ptr, t) != 0)
-      return error ("%s: update_ptr error\n", thisfunc);
+    if (gptl_private::update_ptr (ptr, t) != 0)
+      return gptl_util::error ("%s: update_ptr error\n", thisfunc);
     
-    if (dopr_memusage && t == 0)
-      check_memusage ("Begin", ptr->name);
+    if (gptl_once::dopr_memusage && t == 0)
+      gptl_private::check_memusage ("Begin", ptr->name);
 
     return 0;
   }
@@ -108,11 +116,10 @@ extern "C" {
   */
   int GPTLinit_handle (const char *name, int *handle)
   {
-    using namespace gptl_private;
-    if (disabled)
+    if (gptl_private::disabled)
       return 0;
 
-    *handle = (int) genhashidx (name);
+    *handle = (int) gptl_private::genhashidx (name);
     return 0;
   }
 
@@ -127,15 +134,13 @@ extern "C" {
   */
   int GPTLstart_handle (const char *name, int *handle)
   {
-    using namespace gptl_private;
-    using namespace gptl_util;
-    Timer *ptr;    // linked list pointer
+    gptl_private::Timer *ptr;    // linked list pointer
     int t;         // thread index (of this thread)
     int ret;       // return value
     int numchars;  // number of characters to copy
     static const char *thisfunc = "GPTLstart_handle";
 
-    ret = preamble_start (&t, name);
+    ret = gptl_private::preamble_start (&t, name);
     if (ret == DONE)
       return 0;
     else if (ret != 0)
@@ -148,16 +153,16 @@ extern "C" {
     ** same handle and store to the same memory location, and this will only happen once.
     */
     if (*handle == 0) {
-      *handle = (int) genhashidx (name);
+      *handle = (int) gptl_private::genhashidx (name);
 #ifdef VERBOSE
       printf ("%s: name=%s thread %d generated handle=%d\n", thisfunc, name, t, *handle);
 #endif
     } else if ((unsigned int) *handle > gptl_private::tablesizem1) {
-      return error ("%s: Bad input handle=%u exceeds tablesizem1=%d\n", 
-		    thisfunc, (unsigned int) *handle, gptl_private::tablesizem1);
+      return gptl_util::error ("%s: Bad input handle=%u exceeds tablesizem1=%d\n", 
+			       thisfunc, (unsigned int) *handle, gptl_private::tablesizem1);
     }
 
-    ptr = getentry (hashtable[t], name, (unsigned int) *handle);
+    ptr = gptl_private::getentry (gptl_private::hashtable[t], name, (unsigned int) *handle);
   
     /* 
     ** Recursion => increment depth in recursion and return.  We need to return 
@@ -171,21 +176,22 @@ extern "C" {
 
     // Increment stackidx[t] unconditionally. This is necessary to ensure the correct
     // behavior when GPTLstop decrements stackidx[t] unconditionally.
-    if (++stackidx[t].val > MAX_STACK-1)
+    if (++gptl_private::stackidx[t].val > MAX_STACK-1)
       return gptl_util::error ("%s: stack too big: NOT starting timer for %s\n", thisfunc, name);
 
     if ( ! ptr) { // Add a new entry and initialize
-      ptr = new Timer (name, NULL);
+      ptr = new gptl_private::Timer (name, NULL);
 
-      if (update_ll_hash (ptr, t, (unsigned int) *handle) != 0)
-	return error ("%s: update_ll_hash error\n", thisfunc);
+      if (gptl_private::update_ll_hash (ptr, t, (unsigned int) *handle) != 0)
+	return gptl_util::error ("%s: update_ll_hash error\n", thisfunc);
     }
 
-    if (update_parent_info (ptr, callstack[t], stackidx[t].val) != 0)
-      return error ("%s: update_parent_info error\n", thisfunc);
+    if (gptl_private::update_parent_info (ptr, gptl_private::callstack[t],
+					  gptl_private::stackidx[t].val) != 0)
+      return gptl_util::error ("%s: update_parent_info error\n", thisfunc);
 
-    if (update_ptr (ptr, t) != 0)
-      return error ("%s: update_ptr error\n", thisfunc);
+    if (gptl_private::update_ptr (ptr, t) != 0)
+      return gptl_util::error ("%s: update_ptr error\n", thisfunc);
 
     return 0;
   }
@@ -200,10 +206,7 @@ extern "C" {
   */
   int GPTLstop (const char *name)
   {
-    using namespace gptl_private;
-    using namespace gptl_util;
-    using namespace gptl_once;
-    Timer *ptr;                // linked list pointer
+    gptl_private::Timer *ptr;                // linked list pointer
     int t;                     // thread number for this process
     double tp1 = 0.0;          // time stamp
     long usr = 0;              // user time (returned from get_cpustamp)
@@ -212,18 +215,19 @@ extern "C" {
     unsigned int indx;         // index into hash table
     static const char *thisfunc = "GPTLstop";
 
-    ret = preamble_stop (&t, &tp1, &usr, &sys, name);
+    ret = gptl_private::preamble_stop (&t, &tp1, &usr, &sys, name);
     if (ret == DONE)
       return 0;
     else if (ret != 0)
       return ret;
        
-    indx = genhashidx (name);
-    if (! (ptr = getentry (hashtable[t], name, indx)))
-      return error ("%s thread %d: timer for %s had not been started.\n", thisfunc, t, name);
+    indx = gptl_private::genhashidx (name);
+    if (! (ptr = gptl_private::getentry (gptl_private::hashtable[t], name, indx)))
+      return gptl_util::error ("%s thread %d: timer for %s had not been started.\n",
+			       thisfunc, t, name);
 
     if ( ! ptr->onflg )
-      return error ("%s: timer %s was already off.\n", thisfunc, ptr->name);
+      return gptl_util::error ("%s: timer %s was already off.\n", thisfunc, ptr->name);
 
     ++ptr->count;
 
@@ -239,10 +243,10 @@ extern "C" {
     }
 
     if (update_stats (ptr, tp1, usr, sys, t) != 0)
-      return error ("%s: error from update_stats\n", thisfunc);
+      return gptl_util::error ("%s: error from update_stats\n", thisfunc);
 
-    if (dopr_memusage && t == 0)
-      check_memusage ("End", ptr->name);
+    if (gptl_once::dopr_memusage && t == 0)
+      gptl_private::check_memusage ("End", ptr->name);
 
     return 0;
   }
@@ -258,11 +262,9 @@ extern "C" {
   */
   int GPTLstop_handle (const char *name, int *handle)
   {
-    using namespace gptl_private;
-    using namespace gptl_util;
-    using namespace gptl_once;
+    using gptl_private::hashtable;
     double tp1 = 0.0;          // time stamp
-    Timer *ptr;                // linked list pointer
+    gptl_private::Timer *ptr;                // linked list pointer
     int t;                     // thread number for this process
     int ret;                   // return value
     long usr = 0;              // user time (returned from get_cpustamp)
@@ -270,7 +272,7 @@ extern "C" {
     unsigned int indx;
     static const char *thisfunc = "GPTLstop_handle";
 
-    ret = preamble_stop (&t, &tp1, &usr, &sys, thisfunc);
+    ret = gptl_private::preamble_stop (&t, &tp1, &usr, &sys, thisfunc);
     if (ret == DONE)
       return 0;
     else if (ret != 0)
@@ -278,29 +280,28 @@ extern "C" {
        
     indx = (unsigned int) *handle;
     if (indx == 0 || indx > gptl_private::tablesizem1) 
-      return error ("%s: bad input handle=%u for timer %s.\n", thisfunc, indx, name);
+      return gptl_util::error ("%s: bad input handle=%u for timer %s.\n", thisfunc, indx, name);
   
-    if ( ! (ptr = getentry (hashtable[t], name, indx)))
-      return error ("%s: handle=%u has not been set for timer %s.\n", thisfunc, indx, name);
+    if ( ! (ptr = gptl_private::getentry (hashtable[t], name, indx)))
+      return gptl_util::error ("%s: handle=%u has not been set for timer %s.\n",
+			       thisfunc, indx, name);
 
     if ( ! ptr->onflg )
-      return error ("%s: timer %s was already off.\n", thisfunc, ptr->name);
+      return gptl_util::error ("%s: timer %s was already off.\n", thisfunc, ptr->name);
 
     ++ptr->count;
 
-    /* 
-    ** Recursion => decrement depth in recursion and return.  We need to return
-    ** because we don't want to stop the timer.  We want the reported time for
-    ** the timer to reflect the outermost layer of recursion.
-    */
+    // Recursion => decrement depth in recursion and return.  We need to return
+    // because we don't want to stop the timer.  We want the reported time for
+    // the timer to reflect the outermost layer of recursion.
     if (ptr->recurselvl > 0) {
       ++ptr->nrecurse;
       --ptr->recurselvl;
       return 0;
     }
 
-    if (update_stats (ptr, tp1, usr, sys, t) != 0)
-      return error ("%s: error from update_stats\n", thisfunc);
+    if (gptl_private::update_stats (ptr, tp1, usr, sys, t) != 0)
+      return gptl_util::error ("%s: error from update_stats\n", thisfunc);
 
     return 0;
   }
@@ -316,34 +317,31 @@ extern "C" {
   */
   int GPTLstartstop_val (const char *name, double value)
   {
-    using namespace gptl_private;
-    using namespace gptl_once;
-    using namespace gptl_thread;
-    using namespace gptl_util;
-    Timer *ptr;                // linked list pointer
+    using gptl_private::ptr2wtimefunc;
+    gptl_private::Timer *ptr;                // linked list pointer
     int t;                     // thread number for this process
     unsigned int indx;         // index into hash table
     static const char *thisfunc = "GPTLstartstop_val";
 
-    if (disabled)
+    if (gptl_private::disabled)
       return 0;
 
-    if ( ! initialized)
-      return error ("%s: GPTLinitialize has not been called\n", thisfunc);
+    if ( ! gptl_once::initialized)
+      return gptl_util::error ("%s: GPTLinitialize has not been called\n", thisfunc);
 
-    if ( ! wallstats.enabled)
-      return error ("%s: wallstats must be enabled to call this function\n", thisfunc);
+    if ( ! gptl_private::wallstats.enabled)
+      return gptl_util::error ("%s: wallstats must be enabled to call this function\n", thisfunc);
 
     if (value < 0.)
-      return error ("%s: Input value must not be negative\n", thisfunc);
+      return gptl_util::error ("%s: Input value must not be negative\n", thisfunc);
 
     // gptl_private::getentry requires the thread number
-    if ((t = get_thread_num ()) < 0)
-      return error ("%s: bad return from get_thread_num\n", thisfunc);
+    if ((t = gptl_thread::get_thread_num ()) < 0)
+      return gptl_util::error ("%s: bad return from get_thread_num\n", thisfunc);
 
     // Find out if the timer already exists
-    indx = genhashidx (name);
-    ptr = getentry (hashtable[t], name, indx);
+    indx = gptl_private::genhashidx (name);
+    ptr = gptl_private::getentry (gptl_private::hashtable[t], name, indx);
 
     if (ptr) {
       // The timer already exists. Bump the count manually, update the time stamp,
@@ -354,14 +352,14 @@ extern "C" {
       // Need to call start/stop to set up linked list and hash table.
       // "count" and "last" will also be set properly by the call to this pair.
       if (GPTLstart (name) != 0)
-	return error ("%s: Error from GPTLstart\n", thisfunc);
+	return gptl_util::error ("%s: Error from GPTLstart\n", thisfunc);
 
       if (GPTLstop (name) != 0)
-	return error ("%s: Error from GPTLstop\n", thisfunc);
+	return gptl_util::error ("%s: Error from GPTLstop\n", thisfunc);
 
       // start/stop pair just called should guarantee ptr will be found
-      if ( ! (ptr = getentry (hashtable[t], name, indx)))
-	return error ("%s: Unexpected error from getentry\n", thisfunc);
+      if ( ! (ptr = gptl_private::getentry (gptl_private::hashtable[t], name, indx)))
+	return gptl_util::error ("%s: Unexpected error from getentry\n", thisfunc);
 
       ptr->wall.min = value; // Since this is the first call, set min to user input
       // Minor mod: Subtract the overhead of the above start/stop call, before
@@ -416,7 +414,6 @@ namespace gptl_private {
 
   bool disabled = false;
   bool dousepapi = false;         // saves a function call if stays false
-  char unknown[] = "unknown";
   Timer **timers = 0;             // linked list of timers
   Timer **last = 0;               // last element in list
 
@@ -457,23 +454,21 @@ namespace gptl_private {
     */
     inline int preamble_start (int *t, const char *name)
     {
-      using namespace gptl_once;
-      using namespace gptl_util;
-      using namespace gptl_thread;
       static const char *thisfunc = "preamble_start";
       
       if (disabled)
 	return DONE;
 
-      if ( ! initialized)
-	return error ("%s timername=%s: GPTLinitialize has not been called\n", thisfunc, name);
+      if ( ! gptl_once::initialized)
+	return gptl_util::error ("%s timername=%s: GPTLinitialize has not been called\n",
+				 thisfunc, name);
   
-      if ((*t = get_thread_num ()) < 0)
-	return error ("%s: bad return from get_thread_num\n", thisfunc);
+      if ((*t = gptl_thread::get_thread_num ()) < 0)
+	return gptl_util::error ("%s: bad return from get_thread_num\n", thisfunc);
 
       // If current depth exceeds a user-specified limit for print, just
       // increment and tell caller to return immediately (DONTSTART)
-      if (stackidx[*t].val >= depthlimit) {
+      if (stackidx[*t].val >= gptl_once::depthlimit) {
 	++stackidx[*t].val;
 	return DONE;
       }
@@ -552,7 +547,6 @@ namespace gptl_private {
     */
     inline int update_parent_info (Timer *ptr, Timer **callstackt, int stackidxt) 
     {
-      using namespace gptl_util;
       int n;             // loop index through known parents
       Timer *pptr;       // pointer to parent in callstack
       Timer **pptrtmp;   // for realloc parent pointer array
@@ -564,7 +558,7 @@ namespace gptl_private {
 	return -1;
 
       if (stackidxt < 0)
-	return error ("%s: called with negative stackidx\n", thisfunc);
+	return gptl_util::error ("%s: called with negative stackidx\n", thisfunc);
 
       callstackt[stackidxt] = ptr;
 
@@ -590,13 +584,13 @@ namespace gptl_private {
 	nparent = ptr->nparent;
 	pptrtmp = (Timer **) realloc (ptr->parent, nparent * sizeof (Timer *));
 	if ( ! pptrtmp)
-	  return error ("%s: realloc error pptrtmp nparent=%d\n", thisfunc, nparent);
+	  return gptl_util::error ("%s: realloc error pptrtmp nparent=%d\n", thisfunc, nparent);
 
 	ptr->parent = pptrtmp;
 	ptr->parent[nparent-1] = pptr;
 	parent_count = (int *) realloc (ptr->parent_count, nparent * sizeof (int));
 	if ( ! parent_count)
-	  return error ("%s: realloc error parent_count nparent=%d\n", thisfunc, nparent);
+	  return gptl_util::error ("%s: realloc error parent_count nparent=%d\n", thisfunc, nparent);
 
 	ptr->parent_count = parent_count;
 	ptr->parent_count[nparent-1] = 1;
@@ -620,16 +614,14 @@ namespace gptl_private {
     */
     inline int preamble_stop (int *t, double *tp1, long *usr, long *sys, const char *name)
     {
-      using namespace gptl_once;
-      using namespace gptl_util;
-      using namespace gptl_thread;
       static const char *thisfunc = "preamble_stop";
   
       if (disabled)
 	return DONE;
 
-      if ( ! initialized)
-	return error ("%s timername=%s: GPTLinitialize has not been called\n", thisfunc, name);
+      if ( ! gptl_once::initialized)
+	return gptl_util::error ("%s timername=%s: GPTLinitialize has not been called\n",
+				 thisfunc, name);
 
       // Get the wallclock timestamp
       if (wallstats.enabled) {
@@ -637,13 +629,13 @@ namespace gptl_private {
       }
 
       if (cpustats.enabled && get_cpustamp (usr, sys) < 0)
-	return error ("%s: get_cpustamp error", name);
+	return gptl_util::error ("%s: get_cpustamp error", name);
 
-      if ((*t = get_thread_num ()) < 0)
-	return error ("%s: bad return from get_thread_num\n", name);
+      if ((*t = gptl_thread::get_thread_num ()) < 0)
+	return gptl_util::error ("%s: bad return from get_thread_num\n", name);
 
       // If current depth exceeds a user-specified limit for print, just decrement and return
-      if (stackidx[*t].val > depthlimit) {
+      if (stackidx[*t].val > gptl_once::depthlimit) {
 	--stackidx[*t].val;
 	return DONE;
       }
@@ -665,7 +657,6 @@ namespace gptl_private {
     inline int update_stats (Timer *ptr, const double tp1, const long usr, const long sys,
 				    const int t)
     {
-      using namespace gptl_util;
       double delta;      // difference
       int bidx;          // bottom of call stack
       Timer *bptr;       // pointer to last entry in call stack
@@ -675,7 +666,7 @@ namespace gptl_private {
 
 #ifdef HAVE_PAPI
       if (dousepapi && gptl_papi::PAPIstop (t, &ptr->aux) < 0)
-	return error ("%s: error from PAPIstop\n", thisfunc);
+	return gptl_util::error ("%s: error from PAPIstop\n", thisfunc);
 #endif
 
       if (wallstats.enabled) {
@@ -888,69 +879,65 @@ namespace gptl_private {
     }
 #endif
 
-    inline double utr_placebo ()
-    {
-      static const double zero = 0.;
-      return zero;
-    }
+    inline double utr_placebo () {return (double) 0.;}
+  }
+}
 
-    // Use anonymous namespace for functions private to namespace gptl_private
-    namespace {
-      void print_callstack (int t, const char *caller)
-      {
-	printf ("Current callstack from %s:\n", caller);
-	for (int idx = stackidx[t].val; idx > 0; --idx) {
-	  printf ("%s\n", callstack[t][idx]->name);
-	}
-      }
+// Functions private to the file
+extern "C" {
 
-      /*
-      ** get_cpustamp: Invoke the proper system timer and return stats.
-      **
-      ** Output arguments:
-      **   usr: user time
-      **   sys: system time
-      **
-      ** Return value: 0 (success)
-      */
-      inline int get_cpustamp (long *usr, long *sys)
-      {
-	using namespace gptl_util;
+  /*
+  ** get_cpustamp: Invoke the proper system timer and return stats.
+  **
+  ** Output arguments:
+  **   usr: user time
+  **   sys: system time
+  **
+  ** Return value: 0 (success)
+  */
+  static inline int get_cpustamp (long *usr, long *sys)
+  {
 #ifdef HAVE_TIMES
-	struct tms buf;
-
-	(void) times (&buf);
-	*usr = buf.tms_utime;
-	*sys = buf.tms_stime;
-	return 0;
+    struct tms buf;
+  
+    (void) times (&buf);
+    *usr = buf.tms_utime;
+    *sys = buf.tms_stime;
+    return 0;
 #else
-	return error ("GPTL: get_cpustamp: times() not available\n");
+    return gptl_util::error ("GPTL: get_cpustamp: times() not available\n");
 #endif
-      }
+}
 
-      // set_fp_procsiz: Change file pointer from stderr to point to "procsiz.<rank>" once
-      // MPI has been initialized
-      inline void set_fp_procsiz ()
-      {
+  // set_fp_procsiz: Change file pointer from stderr to point to "procsiz.<rank>" once
+  // MPI has been initialized
+  static inline void set_fp_procsiz ()
+  {
 #ifdef HAVE_LIBMPI
-	int ret;
-	int flag;
-	static bool check_mpi_init = true; // whether to check if MPI has been init (init to true)
-	char outfile[15];
-
-	// Must only open the file once. Also more efficient to only make MPI lib inquiries once
-	if (check_mpi_init) {
-	  ret = MPI_Initialized (&flag);
-	  if (flag) {
-	    int world_iam;
-	    check_mpi_init = false;
-	    ret = MPI_Comm_rank (MPI_COMM_WORLD, &world_iam);
-	    sprintf (outfile, "procsiz.%6.6d", world_iam);
-	    fp_procsiz = fopen (outfile, "w");
-	  }
-	}
+    int ret;
+  int flag;
+  static bool check_mpi_init = true; // whether to check if MPI has been init (init to true)
+  char outfile[15];
+  
+  // Must only open the file once. Also more efficient to only make MPI lib inquiries once
+  if (check_mpi_init) {
+    ret = MPI_Initialized (&flag);
+    if (flag) {
+      int world_iam;
+      check_mpi_init = false;
+      ret = MPI_Comm_rank (MPI_COMM_WORLD, &world_iam);
+      sprintf (outfile, "procsiz.%6.6d", world_iam);
+      fp_procsiz = fopen (outfile, "w");
+    }
+  }
 #endif
-      }
+  }
+  
+  static void print_callstack (int t, const char *caller)
+  {
+    printf ("Current callstack from %s:\n", caller);
+    for (int idx = gptl_private::stackidx[t].val; idx > 0; --idx) {
+      printf ("%s\n", gptl_private::callstack[t][idx]->name);
     }
   }
 }

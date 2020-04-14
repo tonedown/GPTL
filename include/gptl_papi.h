@@ -5,12 +5,13 @@
 #include <stdio.h>
 
 namespace gptl_papi {
-  using namespace gptl_private;
+  using gptl_private::Papistats
   extern int npapievents;
   extern int nevents;
   extern int *EventSet;
   extern long long **papicounters;
   extern bool is_multiplexed;
+
   typedef struct {
     int counter;         // PAPI or Derived counter
     char namestr[13];    // PAPI or Derived counter as string

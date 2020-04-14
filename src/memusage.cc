@@ -27,7 +27,6 @@ extern "C" {
 */
   int GPTLget_memusage (float *rss_out)       // resident set size in MB
   {
-    using namespace gptl_util;
     static const float convert2mb = 1./1024.; // getrusage returns results in KB
     static const char *thisfunc = "GPTLget_memusage";
 
@@ -35,11 +34,11 @@ extern "C" {
     struct rusage usage;                      // structure filled in by getrusage
 
     if (getrusage (RUSAGE_SELF, &usage) < 0)
-      return error ("%s: Failure from getrusage\n", thisfunc);
+      return gptl_util::error ("%s: Failure from getrusage\n", thisfunc);
   
     *rss_out = (float) (usage.ru_maxrss * convert2mb);
 #else
-    return error ("%s: getrusage not available\n", thisfunc);
+    return gptl_util::error ("%s: getrusage not available\n", thisfunc);
 #endif
     return 0;
   }
@@ -54,12 +53,11 @@ extern "C" {
   */
   int GPTLprint_memusage (const char *str)
   {
-    using namespace gptl_util;
     float rss;       // resident set size (returned from getrusage
     static const char *thisfunc = "GPTLprint_memusage";
     
     if (GPTLget_memusage (&rss) < 0)
-      return error ("%s: Failure from GPTLget_memusage", thisfunc);
+      return gptl_util::error ("%s: Failure from GPTLget_memusage", thisfunc);
     
     printf ("%s: %s rss=%f MB\n", thisfunc, str, rss);
     return 0;
@@ -75,7 +73,6 @@ extern "C" {
   */
   int GPTLget_procsiz (float *procsiz_out, float *rss_out)
   {
-    using namespace gptl_util;
     int procsiz;
     int rss;
     static const char *thisfunc = "GPTLget_procsiz";
@@ -92,16 +89,14 @@ extern "C" {
       convert2mb = pagesize / (1024.*1024.);
 
     if ((fd = fopen (file, "r")) < 0)
-      return error ("%s: bad attempt to open %s\n", thisfunc, file);
+      return gptl_util::error ("%s: bad attempt to open %s\n", thisfunc, file);
 
-    /*
-    ** Read the desired data from the /proc filesystem directly into the output
-    ** arguments, close the file and return.
-    */
+    // Read the desired data from the /proc filesystem directly into the output
+    // arguments, close the file and return.
     if ((ret = fscanf (fd, "%d %d %d %d %d %d %d",
 		       &procsiz, &rss, &dum[0], &dum[1], &dum[2], &dum[3], &dum[4])) < 1) {
       (void) fclose (fd);
-      return error ("%s: fscanf failure\n", thisfunc);
+      return gptl_util::error ("%s: fscanf failure\n", thisfunc);
     }
     (void) fclose (fd);
     *procsiz_out = procsiz*convert2mb;

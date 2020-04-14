@@ -17,7 +17,7 @@ extern "C" {
     int ret;
     int size;
     int ignoreret;
-    Timer *timer;
+    gptl_private::Timer *timer;
     
     ignoreret = GPTLstart ("MPI_Send");
     ret = PMPI_Send (buf, count, datatype, dest, tag, comm);
@@ -35,7 +35,7 @@ extern "C" {
     int ret;
     int ignoreret;
     int size;
-    Timer *timer;
+    gptl_private::Timer *timer;
 
     if (gptl_user_input::sync_mpi) {
       ignoreret = GPTLstart ("sync_Recv");
@@ -61,7 +61,7 @@ extern "C" {
     int ret;
     int ignoreret;
     int sendsize, recvsize;
-    Timer *timer;
+    gptl_private::Timer *timer;
 
     ignoreret = GPTLstart ("MPI_Sendrecv");
     ret = PMPI_Sendrecv (sendbuf, sendcount, sendtype, dest, sendtag, 
@@ -82,7 +82,7 @@ extern "C" {
     int ret;
     int ignoreret;
     int size;
-    Timer *timer;
+    gptl_private::Timer *timer;
 
     ignoreret = GPTLstart ("MPI_Isend");
     ret = PMPI_Isend (buf, count, datatype, dest, tag, comm, request);
@@ -100,7 +100,7 @@ extern "C" {
     int ret;
     int ignoreret;
     int size;
-    Timer *timer;
+    gptl_private::Timer *timer;
 
     ignoreret = GPTLstart ("MPI_Issend");
     ret = PMPI_Issend (buf, count, datatype, dest, tag, comm, request);
@@ -118,7 +118,7 @@ extern "C" {
     int ret;
     int ignoreret;
     int size;
-    Timer *timer;
+    gptl_private::Timer *timer;
 
     ignoreret = GPTLstart ("MPI_Irecv");
     ret = PMPI_Irecv (buf, count, datatype, source, tag, comm, request);
@@ -168,7 +168,7 @@ extern "C" {
     int ret;
     int ignoreret;
     int size;
-    Timer *timer;
+    gptl_private::Timer *timer;
 
     if (gptl_user_input::sync_mpi) {
       ignoreret = GPTLstart ("sync_Bcast");
@@ -192,7 +192,7 @@ extern "C" {
     int ret;
     int ignoreret;
     int size;
-    Timer *timer;
+    gptl_private::Timer *timer;
 
     if (gptl_user_input::sync_mpi) {
       ignoreret = GPTLstart ("sync_Allreduce");
@@ -220,7 +220,7 @@ extern "C" {
     int sendsize, recvsize;
     int commsize;
     int ignoreret;
-    Timer *timer;
+    gptl_private::Timer *timer;
 
     if (gptl_user_input::sync_mpi) {
       ignoreret = GPTLstart ("sync_Gather");
@@ -256,7 +256,7 @@ extern "C" {
     int sendsize, recvsize;
     int commsize;
     int ignoreret;
-    Timer *timer;
+    gptl_private::Timer *timer;
 
     if (gptl_user_input::sync_mpi) {
       ignoreret = GPTLstart ("sync_Gatherv");
@@ -294,7 +294,7 @@ extern "C" {
     int iam;
     int sendsize, recvsize;
     int ignoreret;
-    Timer *timer;
+    gptl_private::Timer *timer;
 
     if (gptl_user_input::sync_mpi) {
       ignoreret = GPTLstart ("sync_Scatter");
@@ -326,7 +326,7 @@ extern "C" {
     int sendsize, recvsize;
     int commsize;
     int ignoreret;
-    Timer *timer;
+    gptl_private::Timer *timer;
 
     if (gptl_user_input::sync_mpi) {
       ignoreret = GPTLstart ("sync_Alltoall");
@@ -355,7 +355,7 @@ extern "C" {
     int ret;
     int size;
     int ignoreret;
-    Timer *timer;
+    gptl_private::Timer *timer;
 
     if (gptl_user_input::sync_mpi) {
       ignoreret = GPTLstart ("sync_Reduce");
@@ -382,7 +382,7 @@ extern "C" {
     int sendsize, recvsize;
     int commsize;
     int ignoreret;
-    Timer *timer;
+    gptl_private::Timer *timer;
 
     if (gptl_user_input::sync_mpi) {
       ignoreret = GPTLstart ("sync_Allgather");
@@ -415,7 +415,7 @@ extern "C" {
     int sendsize, recvsize;
     int commsize;
     int ignoreret;
-    Timer *timer;
+    gptl_private::Timer *timer;
 
     if (gptl_user_input::sync_mpi) {
       ignoreret = GPTLstart ("sync_Allgatherv");
@@ -469,7 +469,7 @@ extern "C" {
     int ret;
     int ignoreret;
     int size;
-    Timer *timer;
+    gptl_private::Timer *timer;
 
     ignoreret = GPTLstart ("MPI_Ssend");
     ret = PMPI_Ssend (buf, count, datatype, dest, tag, comm);
@@ -491,7 +491,7 @@ extern "C" {
     int sendsize, recvsize;
     int commsize;
     int ignoreret;
-    Timer *timer;
+    gptl_private::Timer *timer;
   
     if (gptl_user_input::sync_mpi) {
       ignoreret = GPTLstart ("sync_Alltoallv");
@@ -530,7 +530,7 @@ extern "C" {
     int sendsize, recvsize;
     int commsize;
     int ignoreret;
-    Timer *timer;
+    gptl_private::Timer *timer;
 
     if (gptl_user_input::sync_mpi) {
       ignoreret = GPTLstart ("sync_Scatterv");
