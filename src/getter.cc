@@ -67,8 +67,6 @@ extern "C" {
   int GPTLquery (const char *name, int t, int *count, int *onflg, double *wallclock,
 		 double *dusr, double *dsys, long long *papicounters_out, const int maxcounters)
   {
-    using namespace gptl_once;
-    using namespace gptl_util;
     gptl_private::Timer *ptr;  // linked list pointer
     unsigned int indx;         // linked list index returned from getentry (unused)
     static const char *thisfunc = "GPTLquery";
@@ -86,7 +84,7 @@ extern "C" {
     }
 
     indx = gptl_private::genhashidx (name);
-    ptr = getentry (gptl_private::hashtable[t], name, indx);
+    ptr = gptl_private::getentry (gptl_private::hashtable[t], name, indx);
     if ( ! ptr)
       return gptl_util::error ("%s: requested timer %s does not have a name hash\n",
 			       thisfunc, name);
@@ -94,8 +92,8 @@ extern "C" {
     *onflg     = ptr->onflg;
     *count     = ptr->count;
     *wallclock = ptr->wall.accum;
-    *dusr      = ptr->cpu.accum_utime / (double) ticks_per_sec;
-    *dsys      = ptr->cpu.accum_stime / (double) ticks_per_sec;
+    *dusr      = ptr->cpu.accum_utime / (double) gptl_once::ticks_per_sec;
+    *dsys      = ptr->cpu.accum_stime / (double) gptl_once::ticks_per_sec;
 #ifdef HAVE_PAPI
     gptl_papi::PAPIquery (&ptr->aux, papicounters_out, maxcounters);
 #endif
@@ -401,20 +399,12 @@ extern "C" {
     return 0;
   }
 
-  int GPTLis_initialized (void)
-  {
-    return (int) gptl_once::initialized;
-  }
+  // Whether GPTL has been initialized
+  int GPTLis_initialized (void) {return (int) gptl_once::initialized;}
 
   // GPTLnum_errors: returns number of times GPTLerror() called
-  int GPTLnum_errors (void)
-  {
-    return gptl_util::num_errors;
-  }
+  int GPTLnum_errors (void) {return gptl_util::num_errors;}
 
   // GPTLnum_warn: returns number of times GPTLwarn() called
-  int GPTLnum_warn (void)
-  {
-    return gptl_util::num_warn;
-  }
+  int GPTLnum_warn (void) {return gptl_util::num_warn;}
 }

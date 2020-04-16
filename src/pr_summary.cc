@@ -11,9 +11,33 @@
 #include <string.h>
 #include <math.h>          // sqrt
 
-// Private function prototypes
+// Data and functions private to the file
+// MPI summary stats
+typedef struct {
+  unsigned long totcalls;  // number of calls to the region across threads and tasks
+#ifdef HAVE_PAPI
+  double papimax[MAX_AUX]; // max counter value across threads, tasks
+  double papimin[MAX_AUX]; // max counter value across threads, tasks
+  int papimax_p[MAX_AUX];  // task producing papimax
+  int papimax_t[MAX_AUX];  // thread producing papimax
+  int papimin_p[MAX_AUX];  // task producing papimin
+  int papimin_t[MAX_AUX];  // thread producing papimin
+#endif
+  unsigned int notstopped; // number of ranks+threads for whom the timer is ON
+  unsigned int tottsk;     // number of tasks which invoked this region
+  float wallmax;           // max time across threads, tasks
+  float wallmin;           // min time across threads, tasks
+  float mean;              // accumulated mean
+  float m2;                // from Chan, et. al.
+  int wallmax_p;           // task producing wallmax
+  int wallmax_t;           // thread producing wallmax
+  int wallmin_p;           // task producing wallmin
+  int wallmin_t;           // thread producing wallmin
+  char name[MAX_CHARS+1];  // timer name
+} Global;
+
 extern "C" {
-  static void get_threadstats (int, char *, gptl_private::Timer **, Global *);
+  static void get_threadstats (int, char *, Global *);
   static gptl_private::Timer *getentry_slowway (gptl_private::Timer *, char *);
 }
 
@@ -39,7 +63,6 @@ extern "C" {
     int n, nn;           // region index
     int i;               // index
     gptl_private::Timer *ptr;          // linked list pointer
-    gptl_private::Timer **loctimers;      // array of timers
     int incr;            // increment for tree sum
     int twoincr;         // 2*incr
     int dosend;          // logical indicating whether to send this iteration
@@ -77,9 +100,8 @@ extern "C" {
     // Examine only thread 0 regions that have not been renamed due to long name (only applies
     // to auto-profiled routines). The "longname" caveat is important because the naming truncation
     // algorithm may have named the SAME region differently for different ranks
-    loctimers = GPTLget_timersaddr ();
     nregions = 0;
-    for (ptr = loctimers[0]->next; ptr; ptr = ptr->next)
+    for (ptr = gptl_private::timers[0]->next; ptr; ptr = ptr->next)
       if ( ! ptr->longname)
 	++nregions;
 
@@ -94,9 +116,9 @@ extern "C" {
     mnl = 0;
     multithread = (gptl_thread::nthreads > 1);
 
-    for (ptr = loctimers[0]->next; ptr; ptr = ptr->next) {
+    for (ptr = gptl_private::timers[0]->next; ptr; ptr = ptr->next) {
       if ( ! ptr->longname) {
-	get_threadstats (iam, ptr->name, loctimers, &global[n]);
+	get_threadstats (iam, ptr->name, &global[n]);
 	mnl = MAX (strlen (ptr->name), mnl);
 
 	// Initialize for calculating mean, st. dev.
@@ -237,7 +259,7 @@ extern "C" {
       }
 
       // Print a warning if error() was ever called
-      if (gptl_util::num_errors () > 0) {
+      if (gptl_util::num_errors > 0) {
 	fprintf (fp, "WARNING: gptl_util::error was called at least once during the run.\n");
 	fprintf (fp, "Please examine your output for error messages beginning with GPTL...\n");
       }
@@ -370,12 +392,11 @@ extern "C" {
   ** Input arguments:
   **   iam:    my rank
   **   name:   timer name
-  **   loctimers: array of linked lists of timers
   **
   ** Output arguments:
   **   global: max/min stats over all threads
   */
-  static void get_threadstats (int iam, char *name, gptl_private::Timer **loctimers, Global *global)
+  static void get_threadstats (int iam, char *name, Global *global)
   {
     int t;                // thread index
     gptl_private::Timer *ptr;
@@ -386,7 +407,7 @@ extern "C" {
     strcpy (global->name, name);
     
     for (t = 0; t < gptl_thread::nthreads; ++t) {
-      if ((ptr = getentry_slowway (loctimers[t]->next, name))) {
+      if ((ptr = getentry_slowway (gptl_private::timers[t]->next, name))) {
 	// Won't print this entry if it was on for any rank or thread
 	if (ptr->onflg)
 	  ++global->notstopped;

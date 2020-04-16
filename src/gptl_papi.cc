@@ -47,6 +47,174 @@ int GPTL_PAPIlibraryinit ()
   return 0;
 }
 
+// Functions and data local to the file: use static
+static typedef struct {
+  Entry event;
+  int numidx;       // derived event: PAPI counter array index for numerator
+  int denomidx;     // derived event: PAPI counter array index for denominator
+} Pr_event;
+
+static int papieventlist[MAX_AUX];        // list of PAPI events to be counted
+static Pr_event pr_event[MAX_AUX];        // list of events (PAPI or derived)
+
+// Derived events
+static const Entry derivedtable [] = {
+  {GPTL_IPC,    "GPTL_IPC",     "IPC     "},
+  {GPTL_LSTPI,  "GPTL_LSTPI",   "LST_frac"},
+  {GPTL_DCMRT,  "GPTL_DCMRT",   "DCMISRAT"},
+  {GPTL_LSTPDCM,"GPTL_LSTPDCM", "LSTPDCM "},
+  {GPTL_L2MRT,  "GPTL_L2MRT",   "L2MISRAT"},
+  {GPTL_LSTPL2M,"GPTL_LSTPL2M", "LSTPL2M "},
+  {GPTL_L3MRT,  "GPTL_L3MRT",   "L3MISRAT"}
+};
+
+static const int nderivedentries = sizeof (derivedtable) / sizeof (Entry);
+static const int BADCOUNT = -999999;     // Set counters to this when they are bad
+static bool persec = true;               // print PAPI stats per second
+static bool enable_multiplexing = false; // whether to try multiplexing
+static bool verbose = false;             // output verbosity
+
+// Prototypes and function bodies
+extern "C" {
+  static int canenable (int);
+  static int canenable2 (int, int);
+  static int papievent_is_enabled (int);
+  static int already_enabled (int);
+  static int enable (int);
+  static int getderivedidx (int);
+
+  /*
+  ** canenable: determine whether a PAPI counter can be enabled
+  **
+  ** Input args: 
+  **   counter: PAPI counter
+  **
+  ** Return value: 0 (success) or non-zero (failure)
+  */
+  static int canenable (int counter)
+  {
+    char eventname[PAPI_MAX_STR_LEN]; // returned from PAPI_event_code_to_name
+    
+    if (npapievents+1 > MAX_AUX)
+      return false;
+
+    if (PAPI_query_event (counter) != PAPI_OK) {
+      (void) PAPI_event_code_to_name (counter, eventname);
+      fprintf (stderr, "GPTL: canenable: event %s not available on this arch\n", eventname);
+      return false;
+    }
+    return true;
+  }
+
+  /*
+  ** canenable2: determine whether 2 PAPI counters can be enabled
+  **
+  ** Input args: 
+  **   counter1: PAPI counter
+  **   counter2: PAPI counter
+  **
+  ** Return value: 0 (success) or non-zero (failure)
+  */
+  static int canenable2 (int counter1, int counter2)
+  {
+    char eventname[PAPI_MAX_STR_LEN]; // returned from PAPI_event_code_to_name
+    
+    if (npapievents+2 > MAX_AUX)
+      return false;
+    
+    if (PAPI_query_event (counter1) != PAPI_OK) {
+      (void) PAPI_event_code_to_name (counter1, eventname);
+      return false;
+    }
+
+    if (PAPI_query_event (counter2) != PAPI_OK) {
+      (void) PAPI_event_code_to_name (counter2, eventname);
+      return false;
+    }
+    return true;
+  }
+
+  /*
+  ** papievent_is_enabled: determine whether a PAPI counter has already been
+  **   enabled. Used internally to keep track of PAPI counters enabled. A given
+  **   PAPI counter may occur in the computation of multiple derived events, as
+  **   well as output directly. E.g. PAPI_SP_OPS is used to compute
+  **   computational intensity, and floating point ops per instruction.
+  **
+  ** Input args: 
+  **   counter: PAPI counter
+  **
+  ** Return value: index into papieventlist (success) or negative (not found)
+  */
+  static int papievent_is_enabled (int counter)
+  {
+    for (int n = 0; n < npapievents; ++n)
+      if (papieventlist[n] == counter)
+	return n;
+    return -1;
+  }
+
+  /*
+  ** already_enabled: determine whether a PAPI-based event has already been
+  **   enabled for printing. 
+  **
+  ** Input args: 
+  **   counter: PAPI or derived counter
+  **
+  ** Return value: 1 (true) or 0 (false)
+  */
+  static int already_enabled (int counter)
+  {
+    for (int n = 0; n < nevents; ++n)
+      if (pr_event[n].event.counter == counter)
+	return 1;
+    return 0;
+  }
+  
+  /*
+  ** enable: enable a PAPI event. ASSUMES that canenable() has already determined
+  **   that the event can be enabled.
+  **
+  ** Input args: 
+  **   counter: PAPI counter
+  **
+  ** Return value: index into papieventlist
+  */
+  static int enable (int counter)
+  {
+    // If the event is already enabled, return its index
+    for (int n = 0; n < npapievents; ++n) {
+      if (papieventlist[n] == counter) {
+#ifdef DEBUG
+	printf ("GPTL: enable: PAPI event %d is %d\n", n, counter);
+#endif
+	return n;
+      }
+    }
+    // New event
+    papieventlist[npapievents++] = counter;
+    return npapievents-1;
+  }
+
+  /*
+  ** getderivedidx: find the table index of a derived counter
+  **
+  ** Input args: 
+  **   counter: derived counter
+  **
+  ** Return value: index into derivedtable (success) or gptl_util::error (failure)
+  */
+  static int getderivedidx (int dcounter)
+  {
+    for (int n = 0; n < nderivedentries; ++n) {
+      if (derivedtable[n].counter == dcounter)
+	return n;
+    }
+    return gptl_util::error ("GPTL: getderivedidx: failed to find derived counter %d\n",
+			     dcounter);
+  }
+}
+
 //*************************************************************************************
 // GPTL-visible functions: put in a local namespace
 //*************************************************************************************
@@ -58,178 +226,6 @@ namespace gptl_papi {
   long_long **papicounters;         // counters returned from PAPI
   bool is_multiplexed = false;      // whether multiplexed (always start false)
   Entry eventlist[MAX_AUX];          // list of PAPI-based events to be counted
-
-  //*************************************************************************************
-  // private functions to the file: put in anonymous namespace
-  //*************************************************************************************
-
-  namespace {
-    typedef struct {
-      Entry event;
-      int numidx;       // derived event: PAPI counter array index for numerator
-      int denomidx;     // derived event: PAPI counter array index for denominator
-    } Pr_event;
-
-    int papieventlist[MAX_AUX];        // list of PAPI events to be counted
-    Pr_event pr_event[MAX_AUX];        // list of events (PAPI or derived)
-
-    // Derived events
-    const Entry derivedtable [] = {
-      {GPTL_IPC,    "GPTL_IPC",     "IPC     "},
-      {GPTL_LSTPI,  "GPTL_LSTPI",   "LST_frac"},
-      {GPTL_DCMRT,  "GPTL_DCMRT",   "DCMISRAT"},
-      {GPTL_LSTPDCM,"GPTL_LSTPDCM", "LSTPDCM "},
-      {GPTL_L2MRT,  "GPTL_L2MRT",   "L2MISRAT"},
-      {GPTL_LSTPL2M,"GPTL_LSTPL2M", "LSTPL2M "},
-      {GPTL_L3MRT,  "GPTL_L3MRT",   "L3MISRAT"}
-    };
-    const int nderivedentries = sizeof (derivedtable) / sizeof (Entry);
-    const int BADCOUNT = -999999;     // Set counters to this when they are bad
-    bool persec = true;               // print PAPI stats per second
-    bool enable_multiplexing = false; // whether to try multiplexing
-    bool verbose = false;             // output verbosity
-
-    // Prototypes and function bodies
-    extern "C" {
-      int canenable (int);
-      int canenable2 (int, int);
-      int papievent_is_enabled (int);
-      int already_enabled (int);
-      int enable (int);
-      int getderivedidx (int);
-
-      /*
-      ** canenable: determine whether a PAPI counter can be enabled
-      **
-      ** Input args: 
-      **   counter: PAPI counter
-      **
-      ** Return value: 0 (success) or non-zero (failure)
-      */
-      int canenable (int counter)
-      {
-	char eventname[PAPI_MAX_STR_LEN]; // returned from PAPI_event_code_to_name
-
-	if (npapievents+1 > MAX_AUX)
-	  return false;
-
-	if (PAPI_query_event (counter) != PAPI_OK) {
-	  (void) PAPI_event_code_to_name (counter, eventname);
-	  fprintf (stderr, "GPTL: canenable: event %s not available on this arch\n", eventname);
-	  return false;
-	}
-	return true;
-      }
-
-      /*
-      ** canenable2: determine whether 2 PAPI counters can be enabled
-      **
-      ** Input args: 
-      **   counter1: PAPI counter
-      **   counter2: PAPI counter
-      **
-      ** Return value: 0 (success) or non-zero (failure)
-      */
-      int canenable2 (int counter1, int counter2)
-      {
-	char eventname[PAPI_MAX_STR_LEN]; // returned from PAPI_event_code_to_name
-	
-	if (npapievents+2 > MAX_AUX)
-	  return false;
-	
-	if (PAPI_query_event (counter1) != PAPI_OK) {
-	  (void) PAPI_event_code_to_name (counter1, eventname);
-	  return false;
-	}
-
-	if (PAPI_query_event (counter2) != PAPI_OK) {
-	  (void) PAPI_event_code_to_name (counter2, eventname);
-	  return false;
-	}
-	return true;
-      }
-
-      /*
-      ** papievent_is_enabled: determine whether a PAPI counter has already been
-      **   enabled. Used internally to keep track of PAPI counters enabled. A given
-      **   PAPI counter may occur in the computation of multiple derived events, as
-      **   well as output directly. E.g. PAPI_SP_OPS is used to compute
-      **   computational intensity, and floating point ops per instruction.
-      **
-      ** Input args: 
-      **   counter: PAPI counter
-      **
-      ** Return value: index into papieventlist (success) or negative (not found)
-      */
-      int papievent_is_enabled (int counter)
-      {
-	for (int n = 0; n < npapievents; ++n)
-	  if (papieventlist[n] == counter)
-	    return n;
-	return -1;
-      }
-
-      /*
-      ** already_enabled: determine whether a PAPI-based event has already been
-      **   enabled for printing. 
-      **
-      ** Input args: 
-      **   counter: PAPI or derived counter
-      **
-      ** Return value: 1 (true) or 0 (false)
-      */
-      int already_enabled (int counter)
-      {
-	for (int n = 0; n < nevents; ++n)
-	  if (pr_event[n].event.counter == counter)
-	    return 1;
-	return 0;
-      }
-
-      /*
-      ** enable: enable a PAPI event. ASSUMES that canenable() has already determined
-      **   that the event can be enabled.
-      **
-      ** Input args: 
-      **   counter: PAPI counter
-      **
-      ** Return value: index into papieventlist
-      */
-      int enable (int counter)
-      {
-	// If the event is already enabled, return its index
-	for (int n = 0; n < npapievents; ++n) {
-	  if (papieventlist[n] == counter) {
-#ifdef DEBUG
-	    printf ("GPTL: enable: PAPI event %d is %d\n", n, counter);
-#endif
-	    return n;
-	  }
-	}
-	// New event
-	papieventlist[npapievents++] = counter;
-	return npapievents-1;
-      }
-
-      /*
-      ** getderivedidx: find the table index of a derived counter
-      **
-      ** Input args: 
-      **   counter: derived counter
-      **
-      ** Return value: index into derivedtable (success) or gptl_util::error (failure)
-      */
-      int getderivedidx (int dcounter)
-      {
-	for (int n = 0; n < nderivedentries; ++n) {
-	  if (derivedtable[n].counter == dcounter)
-	    return n;
-	}
-	return gptl_util::error ("GPTL: getderivedidx: failed to find derived counter %d\n",
-				 dcounter);
-      }
-    }
-  };
 
   // Functions called from anywhere in GPTL
   extern "C" {

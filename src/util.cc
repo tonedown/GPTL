@@ -10,7 +10,36 @@
 #include <mpi.h>
 #endif
 
-// Namespace declarations of data/functions to be used only by GPTL
+// Use static for file-local functions and variables
+static const int max_errors = 10;   // max number of error print msgs
+static const int max_warn = 10;     // max number of warning messages
+
+extern "C" {
+  bool doprint()
+  {
+#ifdef HAVE_LIBMPI
+    static int world_iam = 0;  // MPI rank
+    int flag;
+    int ret;
+    static bool check_mpi_init = true;
+
+    // Only need to change GPTLworld_iam from 0 in MPI jobs, when flag set to only print 
+    // from rank 0, and when MPI_Initialize hasn't already been invoked
+    if (gptl_once::onlypr_rank0 && check_mpi_init) {
+      ret = MPI_Initialized (&flag);
+      if (flag) {
+	check_mpi_init = false;
+	ret = MPI_Comm_rank (MPI_COMM_WORLD, &world_iam);
+      }
+    }
+    return world_iam == 0;
+#else
+    return true;  // Always return true when no MPI
+#endif
+  }
+}
+
+// Namespace declarations of functions and variables to be used only by GPTL
 namespace gptl_util {
   int num_warn = 0;               // number of times warn() was called
   int num_errors = 0;             // number of times error() was called
@@ -123,46 +152,15 @@ namespace gptl_util {
     */
     int GPTLbarrier (MPI_Comm comm, const char *name)
     {
-      static const char *thisfunc = "GPTLbarrier";
-      
       int ret;
+      static const char *thisfunc = "GPTLbarrier";
       
       ret = GPTLstart (name);
       if ((ret = MPI_Barrier (comm)) != MPI_SUCCESS)
-	return GPTLerror ("%s: Bad return from MPI_Barrier=%d", thisfunc, ret);
+	return gptl_util::error ("%s: Bad return from MPI_Barrier=%d", thisfunc, ret);
       ret = GPTLstop (name);
       return ret;
     }
 #endif    // HAVE_LIBMPI
-  }
-  
-  namespace {
-    const int max_errors = 10;   // max number of error print msgs
-    const int max_warn = 10;     // max number of warning messages
-
-    extern "C" {
-      inline bool doprint()
-      {
-#ifdef HAVE_LIBMPI
-	static int world_iam = 0;  // MPI rank
-	int flag;
-	int ret;
-	static bool check_mpi_init = true;
-
-	// Only need to change GPTLworld_iam from 0 in MPI jobs, when flag set to only print 
-	// from rank 0, and when MPI_Initialize hasn't already been invoked
-	if (gptl_once::onlypr_rank0 && check_mpi_init) {
-	  ret = MPI_Initialized (&flag);
-	  if (flag) {
-	    check_mpi_init = false;
-	    ret = MPI_Comm_rank (MPI_COMM_WORLD, &world_iam);
-	  }
-	}
-	return world_iam == 0;
-#else
-	return true;  // Always return true when no MPI
-#endif
-      }
-    }
   }
 }

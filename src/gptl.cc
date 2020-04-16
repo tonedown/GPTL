@@ -907,7 +907,7 @@ extern "C" {
 #else
     return gptl_util::error ("GPTL: get_cpustamp: times() not available\n");
 #endif
-}
+  }
 
   // set_fp_procsiz: Change file pointer from stderr to point to "procsiz.<rank>" once
   // MPI has been initialized
@@ -915,21 +915,21 @@ extern "C" {
   {
 #ifdef HAVE_LIBMPI
     int ret;
-  int flag;
-  static bool check_mpi_init = true; // whether to check if MPI has been init (init to true)
-  char outfile[15];
+    int flag;
+    static bool check_mpi_init = true; // whether to check if MPI has been init (init to true)
+    char outfile[15];
   
-  // Must only open the file once. Also more efficient to only make MPI lib inquiries once
-  if (check_mpi_init) {
-    ret = MPI_Initialized (&flag);
-    if (flag) {
-      int world_iam;
-      check_mpi_init = false;
-      ret = MPI_Comm_rank (MPI_COMM_WORLD, &world_iam);
-      sprintf (outfile, "procsiz.%6.6d", world_iam);
-      fp_procsiz = fopen (outfile, "w");
+    // Must only open the file once. Also more efficient to only make MPI lib inquiries once
+    if (check_mpi_init) {
+      ret = MPI_Initialized (&flag);
+      if (flag) {
+	int world_iam;
+	check_mpi_init = false;
+	ret = MPI_Comm_rank (MPI_COMM_WORLD, &world_iam);
+	sprintf (outfile, "procsiz.%6.6d", world_iam);
+	gptl_private::fp_procsiz = fopen (outfile, "w");
+      }
     }
-  }
 #endif
   }
   

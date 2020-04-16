@@ -5,8 +5,7 @@
 
 namespace gptl_autoinst {
   extern "C" {
-    inline gptl_private::Timer *getentry_instr (const gptl_private::Hashentry *, void *,
-						unsigned int *);
+    inline gptl_private::Timer *getentry_instr (const int, void *, unsigned int *);
   }
 };
 #endif

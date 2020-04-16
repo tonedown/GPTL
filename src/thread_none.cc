@@ -1,46 +1,53 @@
-int GPTLthreadid = -1;   // This probably isn't needed
+#include "config.h" // Must be first include
+#include "thread.h"
+#include "util.h"
 
-static int threadinit (void)
-{
-  static const char *thisfunc = "threadinit";
+int threadid = -1;   // This probably isn't needed
 
-  if (nthreads != -1)
-    return GPTLerror ("GPTL: Unthreaded %s: MUST only be called once", thisfunc);
+namespace gptl_thread {
+  volatile int maxthreads = -1;       // max threads
+  volatile int nthreads = -1;         // num threads. Init to bad value
 
-  nthreads = 0;
-  maxthreads = 1;
-  return 0;
-}
+  extern "C" {
+    int threadinit (void)
+    {
+      static const char *thisfunc = "threadinit";
 
-void threadfinalize ()
-{
-  GPTLthreadid = -1;
-}
+      if (nthreads != -1)
+	return gptl_util::error ("GPTL: Unthreaded %s: MUST only be called once", thisfunc);
 
-static inline int get_thread_num ()
-{
+      nthreads = 0;
+      maxthreads = 1;
+      return 0;
+    }
+
+    void threadfinalize () {threadid = -1;}
+
+    inline int get_thread_num ()
+    {
 #ifdef HAVE_PAPI
-  static const char *thisfunc = "get_thread_num";
-  /*
-  ** When HAVE_PAPI is true, if 1 or more PAPI events are enabled,
-  ** create and start an event set for the new thread.
-  */
-  if (GPTLthreadid == -1 && gptl_papi::npapievents > 0) {
-    if (create_and_start_events (0) < 0)
-      return GPTLerror ("GPTL: Unthreaded %s: error from GPTLcreate_and_start_events for thread %0\n",
-                        thisfunc);
+      static const char *thisfunc = "get_thread_num";
+      /*
+      ** When HAVE_PAPI is true, if 1 or more PAPI events are enabled,
+      ** create and start an event set for the new thread.
+      */
+      if (threadid == -1 && gptl_papi::npapievents > 0) {
+	if (create_and_start_events (0) < 0)
+	  return gptl_util::error ("GPTL: Unthreaded %s: error from GPTLcreate_and_start_events for thread %0\n",
+				   thisfunc);
 
-    GPTLthreadid = 0;
-  }
+	threadid = 0;
+      }
 #endif
 
-  nthreads = 1;
-  return 0;
-}
+      nthreads = 1;
+      return 0;
+    }
 
-static void print_threadmapping (FILE *fp)
-{
-  fprintf (fp, "\n");
-  fprintf (fp, "GPTLthreadid[0] = 0\n");
+    void print_threadmapping (FILE *fp)
+    {
+      fprintf (fp, "\n");
+      fprintf (fp, "threadid[0] = 0\n");
+    }
+  }
 }
-

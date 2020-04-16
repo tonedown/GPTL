@@ -21,14 +21,52 @@
 #include <string.h>
 #include <stdlib.h>  // for free()
 
+static int start_sim (char *, int);
+static void misc_sim (int);
+
+// Use static functions for file-local
+// start_sim: Simulate the cost of Fortran wrapper layer "gptlstart()"
+int start_sim (char *name, int nc)
+{
+  char cname[nc+1];
+
+  strncpy (cname, name, nc);
+  cname[nc] = '\0';
+  return 0;
+}
+
+// misc_sim: Simulate the cost of miscellaneous computations in start/stop
+void misc_sim (int t)
+{
+  int bidx;
+  gptl_private::Timer *bptr;
+  static gptl_private::Timer *ptr = 0;
+  static const char *thisfunc = "misc_sim";
+      
+  if (gptl_private::disabled)
+    printf ("GPTL: %s: should never print disabled\n", thisfunc);
+  
+  if (! gptl_once::initialized)
+    printf ("GPTL: %s: should never print ! initialized\n", thisfunc);
+  
+  bidx = gptl_private::stackidx[t].val;
+  bptr = gptl_private::callstack[t][bidx];
+  if (ptr == bptr)
+    printf ("GPTL: %s: should never print ptr=bptr\n", thisfunc);
+  
+  --gptl_private::stackidx[t].val;
+  if (gptl_private::stackidx[t].val < -2)
+    printf ("GPTL: %s: should never print stackidxt < -2\n", thisfunc);
+  
+  if (++gptl_private::stackidx[t].val > MAX_STACK-1)
+    printf ("GPTL: %s: should never print stackidxt > MAX_STACK-1\n", thisfunc);
+  
+  return;
+}
+
+// Use namespace for functions needed by GPTL
 namespace gptl_overhead {
   // prototypes for functions in anonymous namespace
-  namespace {
-    using namespace gptl_private;
-    int start_sim (char *, int);
-    void misc_sim (int);
-  }
-
   /*
   ** get_overhead: return current status info about a timer. If certain stats are not enabled, 
   ** they should just have zeros in them. If PAPI is not enabled, input counter info is ignored.
@@ -42,9 +80,10 @@ namespace gptl_overhead {
   */
   int get_overhead (FILE *fp, double *self_ohd, double *parent_ohd)
   {
-    using namespace gptl_private;
-    using namespace gptl_thread;
-    using namespace gptl_autoinst;
+    using gptl_private::ptr2wtimefunc;
+    using gptl_private::hashtable;
+    using gptl_private::genhashidx;
+    using gptl_private::getentry;
     double t1, t2;             // Initial, final timer values
     double ftn_ohd;            // Fortran-callable layer
     double get_thread_num_ohd; // Getting my thread index
@@ -61,7 +100,7 @@ namespace gptl_overhead {
     int mythread;              // which thread are we
     unsigned int hashidx;      // Hash index
     int randomvar;             // placeholder for taking the address of a variable
-    Timer *entry;              // placeholder for return from "getentry()"
+    gptl_private::Timer *entry;              // placeholder for return from "getentry()"
     static const char *thisfunc = "GPTLget_overhead";
 
     // Gather timings by running kernels 1000 times each. First: Fortran wrapper overhead
@@ -70,13 +109,13 @@ namespace gptl_overhead {
       // 9 is the number of characters in "timername"
       ret = start_sim ("timername", 9);
     }
-    t2 = (ptr2wtimefunc)();
+    t2 = (*ptr2wtimefunc)();
     ftn_ohd = 0.001 * (t2 - t1);
 
     // get_thread_num() overhead
     t1 = (*ptr2wtimefunc)();
     for (i = 0; i < 1000; ++i) {
-      mythread = get_thread_num ();
+      mythread = gptl_thread::get_thread_num ();
     }
     t2 = (*ptr2wtimefunc)();
     get_thread_num_ohd = 0.001 * (t2 - t1);
@@ -91,7 +130,7 @@ namespace gptl_overhead {
 
     // getentry overhead
     // Find the first hashtable entry with a valid name. Start at 1 because 0 is not a valid hash
-    for (n = 1; n < tablesize; ++n) {
+    for (n = 1; n < gptl_private::tablesize; ++n) {
       if (hashtable[0][n].nument > 0 && strlen (hashtable[0][n].entries[0]->name) > 0) {
 	hashidx = genhashidx (hashtable[0][n].entries[0]->name);
 	t1 = (*ptr2wtimefunc)();
@@ -103,7 +142,7 @@ namespace gptl_overhead {
 	break;
       }
     }
-    if (n == tablesize) {
+    if (n == gptl_private::tablesize) {
       fprintf (fp, "%s: hash table empty: Using alternate means to find getentry time\n", thisfunc);
       t1 = (*ptr2wtimefunc)();
       for (i = 0; i < 1000; ++i)
@@ -173,13 +212,13 @@ namespace gptl_overhead {
     // getentry_instr overhead
     t1 = (*ptr2wtimefunc)();
     for (i = 0; i < 1000; ++i) {
-      entry = getentry_instr (hashtable[0], &randomvar, &hashidx);
+      entry = gptl_autoinst::getentry_instr (0, &randomvar, &hashidx);
     }
     t2 = (*ptr2wtimefunc)();
     getentry_instr_ohd = 0.001 * (t2 - t1);
 
     // misc start/stop overhead
-    if (imperfect_nest) {
+    if (gptl_private::imperfect_nest) {
       fprintf (fp, "Imperfect nesting detected: setting misc_ohd=0\n");
       misc_ohd = 0.;
     } else {
@@ -229,49 +268,5 @@ namespace gptl_overhead {
     *parent_ohd = ftn_ohd + utr_ohd + misc_ohd +
                   2.*(get_thread_num_ohd + genhashidx_ohd + getentry_ohd + papi_ohd);
     return 0;
-  }
-
-  // Use anonymous namespace for functions private to the outer namespace
-  namespace {
-    // start_sim: Simulate the cost of Fortran wrapper layer "gptlstart()"
-    int start_sim (char *name, int nc)
-    {
-      char cname[nc+1];
-
-      strncpy (cname, name, nc);
-      cname[nc] = '\0';
-      return 0;
-    }
-
-    // misc_sim: Simulate the cost of miscellaneous computations in start/stop
-    void misc_sim (int t)
-    {
-      using namespace gptl_once;
-      using namespace gptl_private;
-      int bidx;
-      Timer *bptr;
-      static Timer *ptr = 0;
-      static const char *thisfunc = "misc_sim";
-      
-      if (gptl_private::disabled)
-	printf ("GPTL: %s: should never print disabled\n", thisfunc);
-
-      if (! gptl_once::initialized)
-	printf ("GPTL: %s: should never print ! initialized\n", thisfunc);
-
-      bidx = gptl_private::stackidx[t].val;
-      bptr = gptl_private::callstack[t][bidx];
-      if (ptr == bptr)
-	printf ("GPTL: %s: should never print ptr=bptr\n", thisfunc);
-
-      --stackidx[t].val;
-      if (gptl_private::stackidx[t].val < -2)
-	printf ("GPTL: %s: should never print stackidxt < -2\n", thisfunc);
-      
-      if (++gptl_private::stackidx[t].val > MAX_STACK-1)
-	printf ("GPTL: %s: should never print stackidxt > MAX_STACK-1\n", thisfunc);
-      
-      return;
-    }
   }
 }

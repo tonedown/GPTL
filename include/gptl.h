@@ -96,6 +96,7 @@ extern "C" {
   extern int GPTLget_threadwork (const char *, double *, double *);
   extern int GPTLget_eventvalue (const char *, const char *, int, double *);
   extern int GPTLget_count (const char *, int, int *);
+  extern int GPTLis_initialized (void);
   extern int GPTLnum_errors (void);
   extern int GPTLnum_warn (void);
 

@@ -1,5 +1,8 @@
 #ifndef UTIL_H
 #define UTIL_H
+#ifdef HAVE_LIBMPI
+#include <mpi.h>
+#endif
 
 namespace gptl_util {
   extern int num_warn;
@@ -13,14 +16,6 @@ namespace gptl_util {
 #ifdef HAVE_LIBMPI
     int GPTLbarrier (MPI_Comm, const char *);
 #endif
-  }
-  
-  namespace {
-    extern const int max_errors;
-    extern const int max_warn;
-    extern "C" {
-      inline bool doprint(void);
-    }
   }
 }
 #endif

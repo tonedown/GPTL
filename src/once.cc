@@ -357,19 +357,17 @@ extern "C" {
   */
   int GPTLfinalize (void)
   {
-    using namespace gptl_private;
-    using namespace gptl_util;
-    using namespace gptl_once;
-    using namespace gptl_thread;
+    using namespace gptl_once;  // violate global "using" rulehere
+    using namespace gptl_private;  // violate global "using" rulehere
     int t;                // thread index
     int n;                // array index
-    gptl_private::Timer *ptr, *ptrnext; // linked list indices
+    Timer *ptr, *ptrnext; // linked list indices
     static const char *thisfunc = "GPTLfinalize";
 
-    if ( ! gptl_once::initialized)
+    if ( ! initialized)
       return gptl_util::error ("%s: initialization was not completed\n", thisfunc);
 
-    for (t = 0; t < maxthreads; ++t) {
+    for (t = 0; t < gptl_thread::maxthreads; ++t) {
       for (n = 0; n < tablesize; ++n) {
 	if (hashtable[t][n].nument > 0)
 	  free (hashtable[t][n].entries);
@@ -377,7 +375,7 @@ extern "C" {
       free (hashtable[t]);
       hashtable[t] = NULL;
       free (callstack[t]);
-      for (ptr = gptl_private::timers[t]; ptr; ptr = ptrnext) {
+      for (ptr = timers[t]; ptr; ptr = ptrnext) {
 	ptrnext = ptr->next;
 	if (ptr->nparent > 0) {
 	  free (ptr->parent);
@@ -391,11 +389,11 @@ extern "C" {
 
     free (callstack);
     free (stackidx);
-    free (gptl_private::timers);
+    free (timers);
     free (last);
     free (hashtable);
 
-    threadfinalize ();
+    gptl_thread::threadfinalize ();
     (void) GPTLreset_errors ();
 
 #ifdef HAVE_PAPI
@@ -403,17 +401,17 @@ extern "C" {
 #endif
 
     // Reset initial values
-    gptl_private::timers = 0;
+    timers = 0;
     last = 0;
     gptl_thread::nthreads = -1;
 #ifdef THREADED_PTHREADS
-    maxthreads = MAX_THREADS;
+    gptl_thread::maxthreads = MAX_THREADS;
 #else
-    maxthreads = -1;
+    gptl_thread::maxthreads = -1;
 #endif
     depthlimit = 99999;
-    gptl_private::disabled = false;
-    gptl_once::initialized = false;
+    disabled = false;
+    initialized = false;
     dousepapi = false;
     verbose = false;
     percent = false;
